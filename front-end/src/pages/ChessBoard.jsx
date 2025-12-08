@@ -20,14 +20,6 @@ function ChessBoard() {
 	const [pieces, setPieces] = useState("neo")
 	const [board, setBoard] = useState("green.svg")
 
-	const boardsContainer = {
-		display: "flex",
-		justifyContent: "space-around",
-		alignItems: "center",
-		flexWrap: "wrap",
-		width: "100vw"
-	}
-
 	useEffect(() => {
 
 		socket.emit("fetch", { id: locState.game.id })
@@ -90,76 +82,154 @@ function ChessBoard() {
 	}
 
 	return (
-		<div>
-			<div className="game_details">
+		<div className="chess-game-container">
+			<WinLostPopup 
+				win={opponentResigned ? true : false} 
+				lost={resigned ? true : false} 
+				draw={false} 
+				resigned={(opponentResigned || resigned) ? true : false} 
+			/>
 
-				{disconnected ? <><p style={{ color: "red" }}>Opponent disconnected...</p><br /></> : ""}
-				<WinLostPopup win={opponentResigned ? true : false} lost={resigned ? true : false} draw={false} resigned={(opponentResigned || resigned) ? true : false} />
-				<div>
-					<div>
-						<span><span style={{ color: "grey" }}>Player 1 (White):</span> {(game.players[0]) ? game.players[0] : "waiting..."}</span><br className="newline" />
-						<span><span style={{ color: "grey" }}>Player 2 (Black):</span> {(game.players[1]) ? game.players[1] : "waiting..."}</span>
+			<div className="chess-game-wrapper">
+				{/* Left Column - Game Info (Move History) */}
+				<div className="chess-info-column">
+					<div className="chess-info-card">
+						{/* Opponent Info */}
+						<div className="player-info opponent-info">
+							<div className="player-avatar">
+								<Icon name='user circle' size='big' style={{ color: '#111827' }} />
+							</div>
+							<div className="player-details">
+								<div className="player-name">
+									{orientation === 'white' 
+										? (game.players[1] || 'Waiting...') 
+										: (game.players[0] || 'Waiting...')}
+								</div>
+								<div className="player-role">
+									{orientation === 'white' ? 'Player 2 (Black)' : 'Player 1 (White)'}
+								</div>
+							</div>
+							{disconnected && (
+								<div className="disconnected-badge">
+									<Icon name='warning circle' /> Offline
+								</div>
+							)}
+						</div>
+
+						{/* Move History */}
+						<div className="moves-section">
+							<div className="section-header">
+								<Icon name='list' />
+								<span>Lịch sử nước đi</span>
+							</div>
+							<div className="moves-list">
+								<table className="moves-table">
+									<tbody>
+										{Parser(displayMoves())}
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+						{/* Current Player Info */}
+						<div className="player-info current-player-info">
+							<div className="player-avatar">
+								<Icon name='user circle' size='big' style={{ color: '#4CAF50' }} />
+							</div>
+							<div className="player-details">
+								<div className="player-name">
+									{orientation === 'white' 
+										? (game.players[0] || locState.username) 
+										: (game.players[1] || locState.username)}
+								</div>
+								<div className="player-role">
+									{orientation === 'white' ? 'Player 1 (White)' : 'Player 2 (Black)'}
+								</div>
+								<div className="player-badge">Bạn</div>
+							</div>
+						</div>
+
+						{/* Game Controls */}
+						<div className="game-controls">
+							<Button 
+								className="control-button resign-button"
+								onClick={handleResignClick}
+								fluid
+							>
+								<Icon name='flag' /> Xin thua
+							</Button>
+
+							<Button 
+								className="control-button refresh-button"
+								onClick={() => socket.emit("fetch", { id: locState.game.id })}
+								fluid
+							>
+								<Icon name='refresh' /> Làm mới
+							</Button>
+
+							<Dropdown 
+								text='Tùy chỉnh giao diện' 
+								fluid
+								button
+								className='control-button settings-dropdown'
+							>
+								<Dropdown.Menu>
+									<Dropdown.Item>
+										<Dropdown text='Kiểu quân cờ' pointing='left'>
+											<Dropdown.Menu>
+												<Dropdown.Item onClick={() => setPieces("classic")}>Classic</Dropdown.Item>
+												<Dropdown.Item onClick={() => setPieces("light")}>Light</Dropdown.Item>
+												<Dropdown.Item onClick={() => setPieces("neo")}>Neo</Dropdown.Item>
+												<Dropdown.Item onClick={() => setPieces("tournament")}>Tournament</Dropdown.Item>
+												<Dropdown.Item onClick={() => setPieces("newspaper")}>Newspaper</Dropdown.Item>
+												<Dropdown.Item onClick={() => setPieces("ocean")}>Ocean</Dropdown.Item>
+												<Dropdown.Item onClick={() => setPieces("8bit")}>8-Bit</Dropdown.Item>
+											</Dropdown.Menu>
+										</Dropdown>
+									</Dropdown.Item>
+									<Dropdown.Item>
+										<Dropdown text='Màu bàn cờ' pointing='left'>
+											<Dropdown.Menu>
+												<Dropdown.Item onClick={() => setBoard("brown.svg")}>Brown</Dropdown.Item>
+												<Dropdown.Item onClick={() => setBoard("blue.svg")}>Blue</Dropdown.Item>
+												<Dropdown.Item onClick={() => setBoard("green.svg")}>Green</Dropdown.Item>
+												<Dropdown.Item onClick={() => setBoard("wood4.jpg")}>Wood</Dropdown.Item>
+												<Dropdown.Item onClick={() => setBoard("newspaper.png")}>Newspaper</Dropdown.Item>
+												<Dropdown.Item onClick={() => setBoard("leather.jpg")}>Leather</Dropdown.Item>
+												<Dropdown.Item onClick={() => setBoard("metal.jpg")}>Metal</Dropdown.Item>
+											</Dropdown.Menu>
+										</Dropdown>
+									</Dropdown.Item>
+								</Dropdown.Menu>
+							</Dropdown>
+						</div>
+
+						{/* Game ID */}
+						<div className="game-id-section">
+							<span className="game-id-label">Game ID:</span>
+							<span className="game-id-value">{game.id}</span>
+							<Icon 
+								name='copy outline' 
+								className="copy-icon"
+								onClick={() => navigator.clipboard.writeText(game.id)}
+								title="Copy Game ID"
+							/>
+						</div>
 					</div>
 				</div>
-				<br />
-				<br />
-				<span>Gamne ID:</span>
-				<Input readOnly style={{ width: "65px" }} value={game.id} />
-				<Dropdown icon="setting" style={{ color: "white", marginLeft: "20px" }} pointing className='link item'>
-					<Dropdown.Menu>
-						<Dropdown.Item>
-							<Dropdown text='Pieces'>
-								<Dropdown.Menu>
-									<Dropdown.Item onClick={() => { setPieces("classic") }}>Classic</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setPieces("light") }}>Light</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setPieces("neo") }}>Neo</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setPieces("tournament") }}>Tournament</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setPieces("newspaper") }}>Newspaper</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setPieces("ocean") }}>Ocean</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setPieces("8bit") }}>8-Bit</Dropdown.Item>
-								</Dropdown.Menu>
-							</Dropdown>
-							<Dropdown.Divider /><br />
-							<Dropdown text='Board'>
-								<Dropdown.Menu>
-									<Dropdown.Item onClick={() => { setBoard("brown.svg") }}>Brown</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setBoard("blue.svg") }}>Blue</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setBoard("green.svg") }}>Green</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setBoard("wood4.jpg") }}>Wood</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setBoard("newspaper.png") }}>Newspaper</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setBoard("leather.jpg") }}>Leather</Dropdown.Item>
-									<Dropdown.Item onClick={() => { setBoard("metal.jpg") }}>Metal</Dropdown.Item>
-								</Dropdown.Menu>
-							</Dropdown>
-						</Dropdown.Item>
-					</Dropdown.Menu>
-				</Dropdown>
-				<Button animated='vertical' className='resign' style={{ marginLeft: "20px" }} onClick={handleResignClick}>
-					<Button.Content hidden>Resign</Button.Content>
-					<Button.Content visible>
-						<Icon name='flag' />
-					</Button.Content>
-				</Button><br />
-				<Button animated='vertical' className='resign' style={{ marginLeft: "20px" }} onClick={() => socket.emit("fetch", { id: locState.game.id })}>
-					<Button.Content hidden>Fetch</Button.Content>
-					<Button.Content visible>
-						<Icon name='refresh' />
-					</Button.Content>
-				</Button><br />
-				{/* <span>{game.pgn}</span> */}
-				<div className="moves-div">
-					<br />
-					<p style={{ fontSize: "20px", color: "white" }}>Moves:</p>
 
-					<table>
-						<tbody>
-							{Parser(displayMoves())}
-						</tbody>
-					</table>
+				{/* Right Column - Chess Board */}
+				<div className="chess-board-column">
+					<div className="chess-board-card">
+						<WithMoveValidation 
+							id={game.id} 
+							pgn={game.pgn} 
+							orientation={orientation} 
+							pieces={pieces} 
+							board={board} 
+						/>
+					</div>
 				</div>
-			</div>
-			<div style={boardsContainer} className="chessboard">
-				<WithMoveValidation id={game.id} pgn={game.pgn} orientation={orientation} pieces={pieces} board={board} />
 			</div>
 		</div>
 	);
