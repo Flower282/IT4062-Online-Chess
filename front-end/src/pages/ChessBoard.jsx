@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react'
-import WithMoveValidation from "./integrations/WithMoveValidation";
+import WithMoveValidation from "../integrations/WithMoveValidation.jsx";
 import { Button, Icon, Input, Dropdown } from 'semantic-ui-react';
-import { useLocation } from 'react-router-dom';
-import socket from './SocketConfig';
-import WinLostPopup from './WinLostPopup';
+import { useLocation, useHistory } from 'react-router-dom';
+import socket from '../SocketConfig';
+import WinLostPopup from '../WinLostPopup.jsx';
 import Parser from 'html-react-parser';
 
-import './css/ChessBoard.css'
+import '../css/ChessBoard.css'
 
 function ChessBoard() {
 	const location = useLocation()
+	const history = useHistory()
 	const locState = location.state
 	const [game, setGame] = useState(locState.game)
 	const [orientation, setOrientation] = useState()
@@ -30,7 +31,8 @@ function ChessBoard() {
 	useEffect(() => {
 
 		socket.emit("fetch", { id: locState.game.id })
-		socket.on("fetch", ({ game }) => {
+		
+		const handleFetch = ({ game }) => {
 			console.log("RICEVUTO FETCH")
 			
 			setGame(game)
@@ -41,19 +43,36 @@ function ChessBoard() {
 			else {
 				setOrientation("black")
 			}
-		});
-		socket.on("disconnected", () => {
+		}
+		
+		const handleDisconnected = () => {
 			setDisconnected(true)
-		})
-		socket.on("resigned", () => {
+		}
+		
+		const handleResigned = () => {
 			setOpponentResigned(true)
-		})
+		}
+		
+		socket.on("fetch", handleFetch);
+		socket.on("disconnected", handleDisconnected)
+		socket.on("resigned", handleResigned)
+
+		// Cleanup function
+		return () => {
+			socket.off("fetch", handleFetch)
+			socket.off("disconnected", handleDisconnected)
+			socket.off("resigned", handleResigned)
+		}
 
 	}, [locState.game.id, locState.username]);
 
 	const handleResignClick = () => {
 		socket.emit("resign", { id: game.id })
 		setResigned(true)
+		// Chuyển về trang home (NewGamePopup) sau khi resign
+		setTimeout(() => {
+			history.push('/home')
+		}, 1500)
 	}
 
 	const displayMoves = () => {

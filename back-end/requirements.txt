@@ -66,3 +66,6 @@ Werkzeug
 wrapt==1.12.1
 yarl
 zipp
+pymongo
+python-dotenv
+bcrypt

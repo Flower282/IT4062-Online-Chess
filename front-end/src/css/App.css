@@ -3,7 +3,7 @@
 }
 
 body{
-  background-color: rgb(27, 28, 29);
+  background-color: #F3F4F6;
 }
 
 .main {
@@ -51,4 +51,280 @@ body{
   transition: 500ms;
   color: white!important;
   background-color: orangered!important;
+}
+
+/* HomePage Container */
+.home-container {
+  min-height: 100vh;
+}
+
+/* Fixed Navbar */
+.navbar-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 40px;
+  z-index: 1000;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.navbar-icon {
+  color: #4CAF50;
+  margin: 0;
+}
+
+.navbar-title h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.navbar-title p {
+  margin: 0;
+  color: #6B7280;
+  font-size: 13px;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.user-info-container {
+  text-align: right;
+}
+
+.user-greeting {
+  color: #111827;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.user-elo {
+  color: #6B7280;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.user-elo .icon {
+  margin: 0 5px 0 0;
+}
+
+.logout-button {
+  background-color: transparent !important;
+  border: 1px solid #f44336 !important;
+  color: #f44336 !important;
+  padding: 10px 20px !important;
+}
+
+.logout-button:hover {
+  background-color: #f44336 !important;
+  color: #fff !important;
+}
+
+/* Main Content */
+.main-content-wrapper {
+  padding-top: 90px;
+  padding: 90px 40px 40px;
+}
+
+.content-grid {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Cards */
+.game-card {
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  padding: 40px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #E5E7EB;
+}
+
+.game-card-header {
+  color: #111827;
+  margin-bottom: 30px;
+}
+
+.game-card-icon {
+  color: #4CAF50;
+}
+
+.game-card-subtitle {
+  color: #6B7280;
+  margin-top: 8px;
+}
+
+.players-card {
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #E5E7EB;
+  min-height: 500px;
+}
+
+.players-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.players-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.players-header-icon {
+  color: #2196F3;
+}
+
+.players-header-title {
+  margin: 0;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.online-badge {
+  font-size: 14px;
+  font-weight: 500;
+  color: #4CAF50;
+  background-color: rgba(76, 175, 80, 0.1);
+  padding: 6px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.players-list-container {
+  margin-top: 20px;
+}
+
+.players-list {
+  margin: 0;
+}
+
+.player-item {
+  padding: 15px 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.player-item-even {
+  background-color: #F9FAFB;
+}
+
+.player-item-odd {
+  background-color: transparent;
+}
+
+.player-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex: 1;
+}
+
+.player-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: #F3F4F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #4CAF50;
+}
+
+.player-avatar-icon {
+  color: #4CAF50;
+  margin: 0;
+}
+
+.player-details {
+  flex: 1;
+}
+
+.player-name {
+  color: #111827;
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.player-rating {
+  color: #6B7280;
+  font-size: 14px;
+}
+
+.player-rating .icon {
+  margin: 0 5px 0 0;
+}
+
+.challenge-button {
+  background-color: #ff5722 !important;
+  color: #fff !important;
+  padding: 10px 20px !important;
+  font-weight: 500 !important;
+}
+
+.challenge-button:hover {
+  background-color: #e64a19 !important;
+}
+
+.empty-players {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6B7280;
+}
+
+.empty-players-icon {
+  color: #D1D5DB;
+  margin-bottom: 20px;
+}
+
+.empty-players-title {
+  font-size: 16px;
+  margin: 0;
+  color: #111827;
+}
+
+.empty-players-subtitle {
+  font-size: 14px;
+  margin-top: 10px;
+  color: #6B7280;
+}
+
+/* Toast Animation */
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }

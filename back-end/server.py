@@ -11,24 +11,63 @@ from engine import Engine
 import time
 from multiprocessing.pool import ThreadPool
 from threading import Thread
+from database import get_db_connection
+from pymongo.errors import ConnectionFailure
+from routes import setup_routes
 
 sio = socketio.AsyncServer(cors_allowed_origins='*')
 app = web.Application()
 sio.attach(app)
-cors = aiohttp_cors.setup(app)
 
-for resource in app.router._resources:
-    if resource.raw_match("/socket.io/"):
-        continue
-    cors.add(resource, { '*': aiohttp_cors.ResourceOptions(allow_credentials=True, expose_headers="*", allow_headers="*") })
+# Setup routes trước khi setup CORS
+setup_routes(app)
+
+# Setup CORS
+cors = aiohttp_cors.setup(app, defaults={
+    "*": aiohttp_cors.ResourceOptions(
+        allow_credentials=True,
+        expose_headers="*",
+        allow_headers="*",
+        allow_methods="*"
+    )
+})
+
+# Thêm CORS cho tất cả routes (trừ socket.io)
+for route in list(app.router.routes()):
+    # Bỏ qua socket.io routes vì chúng đã có CORS riêng
+    if not route.resource.canonical.startswith('/socket.io'):
+        try:
+            cors.add(route)
+        except ValueError:
+            # Route đã có CORS, bỏ qua
+            pass
 
 games = []
 rooms = []
 tot_client = 0
+# Mapping userId -> socket.id for targeting specific users
+user_sockets = {}  # {username: sid}
+# Live online users tracking
+online_users = {}  # {sid: {username, fullname, elo}}
 
 engine = Engine()
 
 pool = ThreadPool(processes=10)
+
+def check_db_connection():
+    """Kiểm tra kết nối đến MongoDB"""
+    try:
+        db = get_db_connection()
+        # Thử ping database để kiểm tra kết nối
+        db.client.admin.command('ping')
+        print("✓ Database connection successful")
+        return True
+    except ConnectionFailure as e:
+        print(f"✗ Database connection failed: {e}")
+        return False
+    except Exception as e:
+        print(f"✗ Error checking database connection: {e}")
+        return False
 
 @sio.event
 def connect(sid, environ):
@@ -42,7 +81,114 @@ def connect(sid, environ):
             rooms.remove(room)
 
     tot_client += 1
+    print(f"Socket connected: {sid}, Total clients: {tot_client}")
     #log()
+
+@sio.event
+async def user_login(sid, data):
+    """Handle user login - add to online users and broadcast"""
+    username = data.get('username')
+    fullname = data.get('fullname', username)
+    elo = data.get('elo', 1200)
+    
+    if username:
+        # Add to online users
+        online_users[sid] = {
+            'username': username,
+            'fullname': fullname,
+            'elo': elo
+        }
+        
+        # Also add to user_sockets for challenge feature
+        user_sockets[username] = sid
+        
+        print(f"User logged in: {username} (sid: {sid})")
+        print(f"Online users count: {len(online_users)}")
+        
+        # Broadcast updated online users list to ALL clients
+        users_list = list(online_users.values())
+        await sio.emit('update_online_users', {'users': users_list})
+
+@sio.event
+async def register_user(sid, data):
+    """Register user with their socket id for challenge feature"""
+    username = data.get('username')
+    if username:
+        user_sockets[username] = sid
+        print(f"User {username} registered with socket {sid}")
+        await sio.emit('user_registered', {'username': username}, room=sid)
+
+@sio.event
+async def send_challenge(sid, data):
+    """Handle challenge request from sender to receiver"""
+    target_username = data.get('targetUsername')
+    sender_info = data.get('senderInfo')  # {username, fullname, elo}
+    
+    if target_username in user_sockets:
+        target_sid = user_sockets[target_username]
+        # Send challenge notification to target user
+        await sio.emit('receive_challenge', {
+            'senderInfo': sender_info
+        }, room=target_sid)
+        
+        # Confirm to sender that challenge was sent
+        await sio.emit('challenge_sent', {
+            'targetUsername': target_username
+        }, room=sid)
+    else:
+        # Target user not online
+        await sio.emit('challenge_failed', {
+            'message': 'Người chơi không online'
+        }, room=sid)
+
+@sio.event
+async def respond_challenge(sid, data):
+    """Handle challenge response (accept/decline)"""
+    status = data.get('status')  # 'accepted' or 'declined'
+    sender_username = data.get('senderUsername')
+    responder_info = data.get('responderInfo')  # {username, fullname}
+    
+    if sender_username in user_sockets:
+        sender_sid = user_sockets[sender_username]
+        
+        if status == 'accepted':
+            # Create a new game for both players
+            game_id = ''.join(random.choice(
+                '0123456789abcdefghijklmnopqrstuvwxyz') for i in range(4))
+            
+            games.append({
+                'id': game_id,
+                'players': [sender_username, responder_info['username']],
+                'pgn': '',
+                'type': 'multiplayer',
+                'status': 'starting'
+            })
+            
+            # Add both users to the game room
+            await sio.enter_room(sender_sid, game_id)
+            await sio.enter_room(sid, game_id)
+            rooms.append({
+                'id': game_id, 
+                'sids': [sender_sid, sid], 
+                'last_seen': time.time()
+            })
+            
+            # Notify both players to start game
+            await sio.emit('game_start', {
+                'gameId': game_id,
+                'opponent': responder_info
+            }, room=sender_sid)
+            
+            await sio.emit('game_start', {
+                'gameId': game_id,
+                'opponent': {'username': sender_username}
+            }, room=sid)
+            
+        else:  # declined
+            # Notify sender that challenge was declined
+            await sio.emit('challenge_declined', {
+                'responder': responder_info
+            }, room=sender_sid)
 
 @sio.event
 async def create(sid, data):
@@ -56,7 +202,7 @@ async def create(sid, data):
         'status': 'starting'
     })
 
-    sio.enter_room(sid, game_id)
+    await sio.enter_room(sid, game_id)
     rooms.append({'id': game_id, 'sids': [sid], 'last_seen': time.time()})
     await sio.emit('created', {'game': games[len(games)-1]})
 
@@ -68,16 +214,16 @@ async def fetch(sid, data):
         if game['id'] == data['id']:
             for room in rooms:
                 if room['id'] == data['id']:
-                    # (NOTE) aggiunto mo'
+                    # (NOTE) aggiunto mo'
                     if sid not in room['sids']:
                         room['sids'].append(sid)
-                        sio.enter_room(sid, data['id'])
+                        await sio.enter_room(sid, data['id'])
 
                     print(room['sids'])
 
                     if len(room['sids']) < 2 and room['sids'][0] != sid:
                         room['sids'].append(sid)
-                        sio.enter_room(sid, data['id'])
+                        await sio.enter_room(sid, data['id'])
             
             if game['status'] == 'starting' and game['type'] == 'computer' and game['players'][0] == game['ai']:
                 board = chess.Board()
@@ -246,6 +392,26 @@ async def disconnect(sid):
 
     print('disconnect', sid)
     tot_client -= 1
+    
+    # Remove user from online_users
+    if sid in online_users:
+        disconnected_user = online_users[sid]
+        username = disconnected_user['username']
+        
+        # Remove from online_users
+        del online_users[sid]
+        
+        # Remove from user_sockets mapping
+        if username in user_sockets and user_sockets[username] == sid:
+            del user_sockets[username]
+        
+        print(f"User {username} disconnected (sid: {sid})")
+        print(f"Online users count: {len(online_users)}")
+        
+        # Broadcast updated online users list to ALL remaining clients
+        users_list = list(online_users.values())
+        await sio.emit('update_online_users', {'users': users_list})
+    
     for room in rooms:
         if sid in room['sids']:
             await sio.emit('disconnected', room=room['id'])
@@ -280,7 +446,7 @@ async def createComputerGame(sid, data):
         'status': 'starting'
     })
 
-    sio.enter_room(sid, game_id)
+    await sio.enter_room(sid, game_id)
     rooms.append({'id': game_id, 'sids': [sid], 'last_seen': time.time()})
     await sio.emit('createdComputerGame', {'game': games[len(games)-1]})
 
@@ -302,7 +468,11 @@ def log():
 
 if __name__ == '__main__':
     #log()
+    
+    # Kiểm tra kết nối database trước khi khởi động server
+    print("Checking database connection...")
+    if not check_db_connection():
+        print("Warning: Server starting without database connection")
+    
     port = int(os.environ.get('PORT', 8080))
-    t = Thread(web.run_app(app, port=port))
-    t.start()
-    # pool.apply_async(web.run_app, (app, port))
+    web.run_app(app, port=port)

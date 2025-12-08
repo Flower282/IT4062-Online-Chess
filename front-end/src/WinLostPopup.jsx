@@ -41,7 +41,7 @@ function WinLostPopup(props) {
                     {renderMessage()}
                 </h3>
                 <br />
-                <Link to="/">
+                <Link to="/home">
                     <Button>Back to home!</Button>
                 </Link>
             </div>
