@@ -367,16 +367,6 @@ function App() {
         {/* Routes yêu cầu đăng nhập */}
         <PrivateRoute path="/home" component={HomePage} />
         
-        <Route path="/game">
-          <Header as='h2' inverted style={{ display: "flex", justifyContent: "center", paddingTop: "10px" }} textAlign="left">
-            <Icon name='chess' />
-            <Header.Content>
-              Online Chess
-              <Header.Subheader>Play Chess Online with your friends!</Header.Subheader>
-            </Header.Content>
-          </Header>
-        </Route>
-        
         <PrivateRoute path="/game" component={ChessBoard} />
       </div>
     </Router>
