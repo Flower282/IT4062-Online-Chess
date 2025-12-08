@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Popup from 'reactjs-popup';
 import { Redirect } from 'react-router-dom';
-import "./css/NewGamePopup.css";
-import socket from './SocketConfig';
-import { Form, Checkbox } from 'semantic-ui-react'
+import "../css/NewGamePopup.css";
+import socket from '../SocketConfig';
+import { Checkbox, Button, Icon } from 'semantic-ui-react'
 
 function NewGamePopup() {
 	const [open, setOpen] = useState(undefined)
@@ -14,12 +14,23 @@ function NewGamePopup() {
 
 	const [ai, setAi] = useState('random')
 
+	useEffect(() => {
+		// Cleanup function to remove socket listeners when component unmounts
+		return () => {
+			socket.off("created")
+			socket.off("createdComputerGame")
+		}
+	}, [])
+
 	const handleSubmitMultiplayer = (e) => {
 		e.preventDefault()
 
+		// Remove previous listener to avoid duplicates
+		socket.off("created")
+		
 		socket.emit("create", { username: username })
 		setLoading(true)
-		socket.on("created", ({ game }) => {
+		socket.once("created", ({ game }) => {
 			setGame(game)
 			setRedirect(true)
 			setLoading(false)
@@ -29,9 +40,12 @@ function NewGamePopup() {
 	const handleSubmitComputer = (e) => {
 		e.preventDefault()
 
+		// Remove previous listener to avoid duplicates
+		socket.off("createdComputerGame")
+
 		socket.emit("createComputerGame", { username: username, ai: ai })
 		setLoading(true)
-		socket.on("createdComputerGame", ({ game }) => {
+		socket.once("createdComputerGame", ({ game }) => {
 			setGame(game)
 			setRedirect(true)
 			setLoading(false)
@@ -49,16 +63,16 @@ function NewGamePopup() {
 					Choose a Username
 				</h3>
 				<div style={{ textAlign: "center" }}></div>
-				<form className="ui form">
+				<div className="ui form">
 					<input value={username} onChange={e => { setUsername(e.target.value) }}></input>
 					<br /><br />
 
-					<Form>
-						<Form.Group inline  widths='equal'>
-							<Form.Field>
+					<div>
+						<div className="inline fields equal width">
+							<div className="field">
 								Selected AI: <b>{ai}</b>
-							</Form.Field>
-							<Form.Field>
+							</div>
+							<div className="field">
 								<Checkbox
 									radio
 									label='Random Moves'
@@ -67,8 +81,8 @@ function NewGamePopup() {
 									checked={ai === 'random'}
 									onChange={() => setAi('random')}
 								/>
-							</Form.Field>
-							<Form.Field>
+							</div>
+							<div className="field">
 								<Checkbox
 									radio
 									label='Stockfish 14'
@@ -77,8 +91,8 @@ function NewGamePopup() {
 									checked={ai === 'stockfish'}
 									onChange={() => setAi('stockfish')}
 								/>
-							</Form.Field>
-							<Form.Field>
+							</div>
+							<div className="field">
 								<Checkbox
 									radio
 									label='Pure Minimax'
@@ -87,8 +101,8 @@ function NewGamePopup() {
 									checked={ai === 'minimax'}
 									onChange={() => setAi('minimax')}
 								/>
-							</Form.Field>
-							<Form.Field>
+							</div>
+							<div className="field">
 								<Checkbox
 									radio
 									label='Minimax and ML'
@@ -97,9 +111,9 @@ function NewGamePopup() {
 									checked={ai === 'ml'}
 									onChange={() => setAi('ml')}
 								/>
-							</Form.Field>
-						</Form.Group>
-					</Form>
+							</div>
+						</div>
+					</div>
 					<br />
 					<button className={loading ? "ui loading button" : "ui button"} onClick={e => handleSubmitMultiplayer(e)} disabled={username === "" ? true : false}>
 						Create Multiplayer Game
@@ -110,7 +124,7 @@ function NewGamePopup() {
 						Create Game against Computer
 					</button>
 					{(redirect) ? <Redirect to={{ pathname: "/game", state: { username: username, game: game } }} /> : ''}
-				</form>
+				</div>
 			</div>
 
 		</Popup >

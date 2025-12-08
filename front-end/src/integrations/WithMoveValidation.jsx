@@ -2,7 +2,7 @@ import React, { Component } from 'react'; // eslint-disable-line no-unused-vars
 import PropTypes from 'prop-types';
 import Chess from 'chess.js';
 import socket from '../SocketConfig';
-import WinLostPopup from '../WinLostPopup';
+import WinLostPopup from '../WinLostPopup.jsx';
 import Chessboard from 'chessboardjsx';
 
 class HumanVsHuman extends Component {
@@ -29,6 +29,45 @@ class HumanVsHuman extends Component {
     //pieces: this.props.pieces
   };
 
+  handleMoved = ({ from, to }) => {
+    this.state.game.move({
+      from: from,
+      to: to,
+      promotion: 'q' // always promote to a queen for example simplicity
+    });
+
+    this.setState(({ history, pieceSquare }) => ({
+      fen: this.state.game.fen(),
+      history: this.state.game.history({ verbose: true }),
+      squareStyles: squareStyling({ pieceSquare: to, history: this.state.game.history({ verbose: true }) })
+    }));
+
+    if (this.state.game.in_checkmate()) {
+      socket.emit("checkmate", { id: this.state.id })
+      this.setState({ lost: true })
+      this.state.game.clear()
+    }
+
+    if (this.state.game.in_draw() || 
+        this.state.game.in_stalemate() || 
+        this.state.game.in_threefold_repetition() || 
+        this.state.game.insufficient_material()) {
+        socket.emit("draw", { id: this.state.id })
+        this.setState({ draw: true })
+        this.state.game.clear()
+    }
+  }
+
+  handleCheckmate = () => {
+    this.setState({ win: true })
+    this.state.game.clear()
+  }
+
+  handleDraw = () => {
+    this.setState({ draw: true })
+    this.state.game.clear()
+  }
+
   componentDidMount() {
     this.setState({ orientation: this.props.orientation })
     this.setState({ id: this.props.id })
@@ -39,45 +78,15 @@ class HumanVsHuman extends Component {
     this.setState({game:chess})
 
     console.log(this.state.game.pgn())
-    socket.on("moved", ({ from, to }) => {
+    socket.on("moved", this.handleMoved)
+    socket.on("checkmate", this.handleCheckmate)
+    socket.on("draw", this.handleDraw)
+  }
 
-      this.state.game.move({
-        from: from,
-        to: to,
-        promotion: 'q' // always promote to a queen for example simplicity
-      });
-
-      this.setState(({ history, pieceSquare }) => ({
-        fen: this.state.game.fen(),
-        history: this.state.game.history({ verbose: true }),
-        squareStyles: squareStyling({ pieceSquare: to, history: this.state.game.history({ verbose: true }) })
-      }));
-
-      if (this.state.game.in_checkmate()) {
-        socket.emit("checkmate", { id: this.state.id })
-        this.setState({ lost: true })
-        this.state.game.clear()
-      }
-
-      if (this.state.game.in_draw() || 
-          this.state.game.in_stalemate() || 
-          this.state.game.in_threefold_repetition() || 
-          this.state.game.insufficient_material()) {
-          socket.emit("draw", { id: this.state.id })
-          this.setState({ draw: true })
-          this.state.game.clear()
-      }
-    })
-
-    socket.on("checkmate", () => {
-      this.setState({ win: true })
-      this.state.game.clear()
-    })
-
-    socket.on("draw", () => {
-      this.setState({ draw: true })
-      this.state.game.clear()
-    })
+  componentWillUnmount() {
+    socket.off("moved", this.handleMoved)
+    socket.off("checkmate", this.handleCheckmate)
+    socket.off("draw", this.handleDraw)
   }
 
   componentDidUpdate(prevProps) {

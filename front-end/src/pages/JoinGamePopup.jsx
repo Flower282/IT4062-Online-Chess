@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import Popup from 'reactjs-popup';
 import { Redirect } from 'react-router-dom';
-import "./css/NewGamePopup.css";
-import socket from './SocketConfig';
+import "../css/NewGamePopup.css";
+import socket from '../SocketConfig';
 
 function NewGamePopup() {
 	const [open, setOpen] = useState(undefined)
