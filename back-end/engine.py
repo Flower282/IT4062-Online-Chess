@@ -14,16 +14,32 @@ import time
 class Engine:
 
     def __init__(self):
+        # Try to load Stockfish, but don't fail if it's not available
         self.stockfish = None
-        if platform == 'linux' or platform == 'linux2':
-            self.stockfish = Stockfish('./stockfish/stockfish_14_x64')
-        elif platform == 'darwin':
-            self.stockfish = Stockfish()
+        try:
+            if platform == 'linux' or platform == 'linux2':
+                self.stockfish = Stockfish('./stockfish/stockfish_14_x64')
+            elif platform == 'darwin':
+                self.stockfish = Stockfish()
+            print("Stockfish engine loaded successfully")
+        except Exception as e:
+            print(f"Warning: Could not load Stockfish: {e}")
+            print("The engine will work without Stockfish.")
 
-        with open('./ml/trained_model/dumped_clf.pkl', 'rb') as fid:
-            self.classifier = pickle.load(fid)
+        # Try to load ML model, but don't fail if it's not available
+        self.classifier = None
+        try:
+            with open('./ml/trained_model/dumped_clf.pkl', 'rb') as fid:
+                self.classifier = pickle.load(fid)
+            print("ML classifier loaded successfully")
+        except Exception as e:
+            print(f"Warning: Could not load ML classifier: {e}")
+            print("The engine will work without ML filtering.")
 
     def get_stockfish_best_move(self, board):
+        if self.stockfish is None:
+            print("Stockfish not available, using minimax instead")
+            return self.get_minimax_best_move(board, with_ml=False)
         self.stockfish.set_fen_position(board.fen())
         return self.stockfish.get_best_move()
 
@@ -56,10 +72,10 @@ class Engine:
         evaluation = -999999
         best_move_found = None 
 
-        # Cycling the legal moves, finds the best one
+        # Cycling the legal moves, finds the best one
         start = time.time()
 
-        if with_ml:
+        if with_ml and self.classifier is not None:
             moves = filter_good_moves(board=board, classifier=self.classifier, first_print=True)
             print(moves)
         else:
