@@ -91,6 +91,24 @@ export const getUserProfile = async () => {
 };
 
 /**
+ * Verify JWT token và lấy thông tin user
+ * @returns {Promise} Response từ server với thông tin user
+ */
+export const verifyToken = async () => {
+  try {
+    const response = await apiClient.get('/api/auth/me');
+    return response.data;
+  } catch (error) {
+    // Nếu token không hợp lệ, xóa token
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+    throw error.response?.data || { success: false, message: 'Lỗi xác thực' };
+  }
+};
+
+/**
  * Lấy thông tin user theo username
  * @param {string} username - Tên đăng nhập
  * @returns {Promise} Response từ server
@@ -157,6 +175,7 @@ export default {
   registerUser,
   loginUser,
   getUserProfile,
+  verifyToken,
   getUser,
   getAllUsers,
   logoutUser,

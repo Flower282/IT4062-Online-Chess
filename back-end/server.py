@@ -124,19 +124,34 @@ async def send_challenge(sid, data):
     target_username = data.get('targetUsername')
     sender_info = data.get('senderInfo')  # {username, fullname, elo}
     
+    print(f"\n=== SEND CHALLENGE DEBUG ===")
+    print(f"Sender SID: {sid}")
+    print(f"Sender Info: {sender_info}")
+    print(f"Target Username: {target_username}")
+    print(f"Current user_sockets mapping: {user_sockets}")
+    
     if target_username in user_sockets:
         target_sid = user_sockets[target_username]
+        print(f"Target SID found: {target_sid}")
+        print(f"Sender SID: {sid}")
+        print(f"Are they the same? {target_sid == sid}")
+        
         # Send challenge notification to target user
         await sio.emit('receive_challenge', {
             'senderInfo': sender_info
         }, room=target_sid)
         
+        print(f"Emitted 'receive_challenge' to target_sid: {target_sid}")
+        
         # Confirm to sender that challenge was sent
         await sio.emit('challenge_sent', {
             'targetUsername': target_username
         }, room=sid)
+        
+        print(f"Emitted 'challenge_sent' to sender_sid: {sid}")
     else:
         # Target user not online
+        print(f"Target user {target_username} not found in user_sockets")
         await sio.emit('challenge_failed', {
             'message': 'Người chơi không online'
         }, room=sid)
@@ -148,55 +163,140 @@ async def respond_challenge(sid, data):
     sender_username = data.get('senderUsername')
     responder_info = data.get('responderInfo')  # {username, fullname}
     
-    if sender_username in user_sockets:
-        sender_sid = user_sockets[sender_username]
+    print(f"\n=== RESPOND_CHALLENGE DEBUG ===")
+    print(f"Status: {status}")
+    print(f"Sender Username: {sender_username}")
+    print(f"Responder Info: {responder_info}")
+    print(f"Responder SID: {sid}")
+    print(f"Current user_sockets: {user_sockets}")
+    
+    # Check if sender is still online
+    if sender_username not in user_sockets:
+        print(f"ERROR: Sender {sender_username} not found in user_sockets!")
+        await sio.emit('challenge_error', {
+            'message': 'Người thách đấu không còn online'
+        }, room=sid)
+        return
+    
+    sender_sid = user_sockets[sender_username]
+    print(f"Sender SID found: {sender_sid}")
+    
+    # Check if sender socket is still connected
+    try:
+        # Verify sender is still in a session
+        sender_still_online = False
+        for user_sid, user_info in online_users.items():
+            if user_sid == sender_sid and user_info['username'] == sender_username:
+                sender_still_online = True
+                break
         
-        if status == 'accepted':
-            # Create a new game for both players
-            game_id = ''.join(random.choice(
-                '0123456789abcdefghijklmnopqrstuvwxyz') for i in range(4))
-            
-            games.append({
-                'id': game_id,
-                'players': [sender_username, responder_info['username']],
-                'pgn': '',
-                'type': 'multiplayer',
-                'status': 'starting'
-            })
-            
-            # Add both users to the game room
-            await sio.enter_room(sender_sid, game_id)
-            await sio.enter_room(sid, game_id)
-            rooms.append({
-                'id': game_id, 
-                'sids': [sender_sid, sid], 
-                'last_seen': time.time()
-            })
-            
-            # Notify both players to start game
-            await sio.emit('game_start', {
-                'gameId': game_id,
-                'opponent': responder_info
-            }, room=sender_sid)
-            
-            await sio.emit('game_start', {
-                'gameId': game_id,
-                'opponent': {'username': sender_username}
+        if not sender_still_online:
+            print(f"ERROR: Sender {sender_username} socket {sender_sid} is no longer connected!")
+            await sio.emit('challenge_error', {
+                'message': 'Người thách đấu đã ngắt kết nối'
             }, room=sid)
+            return
             
-        else:  # declined
-            # Notify sender that challenge was declined
-            await sio.emit('challenge_declined', {
-                'responder': responder_info
-            }, room=sender_sid)
+        print(f"✓ Sender {sender_username} is still online")
+        
+    except Exception as e:
+        print(f"ERROR checking sender connection: {e}")
+        await sio.emit('challenge_error', {
+            'message': 'Lỗi khi kiểm tra kết nối'
+        }, room=sid)
+        return
+    
+    if status == 'accepted':
+        # Create a new game for both players
+        game_id = ''.join(random.choice(
+            '0123456789abcdefghijklmnopqrstuvwxyz') for i in range(4))
+        
+        print(f"Creating game with ID: {game_id}")
+        
+        # Get sender's fullname from online_users
+        sender_fullname = sender_username
+        for user_sid, user_info in online_users.items():
+            if user_info['username'] == sender_username:
+                sender_fullname = user_info.get('fullname', sender_username)
+                break
+        
+        new_game = {
+            'id': game_id,
+            'players': [sender_username, responder_info['username']],
+            'playerInfo': [
+                {'username': sender_username, 'fullname': sender_fullname},
+                {'username': responder_info['username'], 'fullname': responder_info.get('fullname', responder_info['username'])}
+            ],
+            'pgn': '',
+            'type': 'multiplayer',
+            'status': 'starting'
+        }
+        games.append(new_game)
+        
+        print(f"Game created: {new_game}")
+        
+        # Add both users to the game room
+        await sio.enter_room(sender_sid, game_id)
+        await sio.enter_room(sid, game_id)
+        rooms.append({
+            'id': game_id, 
+            'sids': [sender_sid, sid], 
+            'last_seen': time.time()
+        })
+        
+        print(f"Both users added to room {game_id}")
+        print(f"Room participants: sender_sid={sender_sid}, responder_sid={sid}")
+        
+        # CRITICAL: Notify SENDER (User 1) first
+        print(f"Emitting 'game_start' to SENDER (User 1) at {sender_sid}")
+        await sio.emit('game_start', {
+            'gameId': game_id,
+            'game': new_game,
+            'opponent': {
+                'username': responder_info['username'],
+                'fullname': responder_info.get('fullname', responder_info['username'])
+            }
+        }, room=sender_sid)
+        
+        print(f"✓ Emitted game_start to sender")
+        
+        # Then notify RESPONDER (User 2)
+        print(f"Emitting 'game_start' to RESPONDER (User 2) at {sid}")
+        await sio.emit('game_start', {
+            'gameId': game_id,
+            'game': new_game,
+            'opponent': {
+                'username': sender_username,
+                'fullname': sender_fullname
+            }
+        }, room=sid)
+        
+        print(f"✓ Emitted game_start to responder")
+        print(f"=== CHALLENGE ACCEPTED - BOTH NOTIFIED ===\n")
+        
+    else:  # declined
+        print(f"Challenge declined by {responder_info['username']}")
+        # Notify sender that challenge was declined
+        await sio.emit('challenge_declined', {
+            'responder': responder_info
+        }, room=sender_sid)
+        print(f"Emitted challenge_declined to sender")
 
+@sio.event
 @sio.event
 async def create(sid, data):
     game_id = ''.join(random.choice(
         '0123456789abcdefghijklmnopqrstuvwxyz') for i in range(4))
+    
+    # Get user's fullname from online_users
+    user_fullname = data['username']
+    if sid in online_users:
+        user_fullname = online_users[sid].get('fullname', data['username'])
+    
     games.append({
         'id': game_id,
         'players': [data['username']],
+        'playerInfo': [{'username': data['username'], 'fullname': user_fullname}],
         'pgn': '',
         'type': 'multiplayer',
         'status': 'starting'
@@ -208,6 +308,7 @@ async def create(sid, data):
 
     #log()
 
+@sio.event
 @sio.event
 async def fetch(sid, data):
     for game in games:
@@ -249,6 +350,7 @@ async def fetch(sid, data):
     #log()
 
 @sio.event
+@sio.event
 async def join(sid, data):
     gamefound = False
     username_already_in_use = False
@@ -258,6 +360,19 @@ async def join(sid, data):
                 username_already_in_use = True
             else:
                 game['players'].append(data['username'])
+                
+                # Get joining user's fullname from online_users
+                user_fullname = data['username']
+                if sid in online_users:
+                    user_fullname = online_users[sid].get('fullname', data['username'])
+                
+                # Add playerInfo if not exists
+                if 'playerInfo' not in game:
+                    game['playerInfo'] = []
+                
+                # Add the second player's info
+                game['playerInfo'].append({'username': data['username'], 'fullname': user_fullname})
+                
                 game['status'] = 'ongoing'
                 sio.enter_room(sid, data['id'])
                 for room in rooms:
@@ -275,6 +390,7 @@ async def join(sid, data):
 
     #log()
 
+@sio.event
 @sio.event
 async def move(sid, data):  # id, from, to, pgn
 
@@ -348,6 +464,7 @@ async def move(sid, data):  # id, from, to, pgn
     #log()
 
 @sio.event
+@sio.event
 async def resign(sid, data):
     await sio.emit('resigned', room=data['id'], skip_sid=sid)
     index = -1
@@ -361,6 +478,7 @@ async def resign(sid, data):
     #log()
 
 @sio.event
+@sio.event
 async def checkmate(sid, data):
     await sio.emit('checkmate', room=data['id'], skip_sid=sid)
     index = -1
@@ -373,6 +491,7 @@ async def checkmate(sid, data):
     
     #log()
 
+@sio.event
 @sio.event
 async def draw(sid, data):
     await sio.emit('draw', room=data['id'], skip_sid=sid)
@@ -431,15 +550,25 @@ async def disconnect(sid):
 
 
 @sio.event
+@sio.event
 async def createComputerGame(sid, data):
     game_id = ''.join(random.choice(
         '0123456789abcdefghijklmnopqrstuvwxyz') for i in range(4))
+
+    # Get user's fullname from online_users
+    user_fullname = data['username']
+    if sid in online_users:
+        user_fullname = online_users[sid].get('fullname', data['username'])
 
     players = [data['username'], data['ai']]
     #random.shuffle(players)
     games.append({
         'id': game_id,
         'players': players,
+        'playerInfo': [
+            {'username': data['username'], 'fullname': user_fullname},
+            {'username': data['ai'], 'fullname': 'Stockfish AI'}
+        ],
         'pgn': '',
         'type': 'computer',
         'ai': data['ai'],
