@@ -12,7 +12,7 @@ function ChessBoard() {
 	const location = useLocation()
 	const history = useHistory()
 	const locState = location.state
-	const [game, setGame] = useState(locState.game)
+	const [game, setGame] = useState(locState?.game || {})
 	const [orientation, setOrientation] = useState()
 	const [disconnected, setDisconnected] = useState(false)
 	const [resigned, setResigned] = useState(false)
@@ -21,6 +21,11 @@ function ChessBoard() {
 	const [board, setBoard] = useState("green.svg")
 
 	useEffect(() => {
+		// Safety check: redirect to home if no game data
+		if (!locState || !locState.game || !locState.game.id) {
+			history.push('/home');
+			return;
+		}
 
 		socket.emit("fetch", { id: locState.game.id })
 		
@@ -61,10 +66,7 @@ function ChessBoard() {
 	const handleResignClick = () => {
 		socket.emit("resign", { id: game.id })
 		setResigned(true)
-		// Chuyển về trang home (NewGamePopup) sau khi resign
-		setTimeout(() => {
-			history.push('/home')
-		}, 1500)
+		// Popup sẽ hiển thị và user phải bấm OK để quay về home
 	}
 
 	const displayMoves = () => {
@@ -94,21 +96,21 @@ function ChessBoard() {
 				{/* Left Column - Game Info (Move History) */}
 				<div className="chess-info-column">
 					<div className="chess-info-card">
-						{/* Opponent Info */}
-						<div className="player-info opponent-info">
-							<div className="player-avatar">
-								<Icon name='user circle' size='big' style={{ color: '#111827' }} />
+					{/* Opponent Info */}
+					<div className="player-info opponent-info">
+						<div className="player-avatar">
+							<Icon name='user circle' size='big' style={{ color: '#111827' }} />
+						</div>
+					<div className="player-details">
+						<div className="player-name">
+							{orientation === 'white' 
+								? (game.playerInfo?.[1]?.fullname || game.players?.[1] || 'Waiting...') 
+								: (game.playerInfo?.[0]?.fullname || game.players?.[0] || 'Waiting...')}
+						</div>
+							<div className="player-role">
+								{orientation === 'white' ? 'Player 2 (Black)' : 'Player 1 (White)'}
 							</div>
-							<div className="player-details">
-								<div className="player-name">
-									{orientation === 'white' 
-										? (game.players[1] || 'Waiting...') 
-										: (game.players[0] || 'Waiting...')}
-								</div>
-								<div className="player-role">
-									{orientation === 'white' ? 'Player 2 (Black)' : 'Player 1 (White)'}
-								</div>
-							</div>
+						</div>
 							{disconnected && (
 								<div className="disconnected-badge">
 									<Icon name='warning circle' /> Offline
@@ -131,25 +133,23 @@ function ChessBoard() {
 							</div>
 						</div>
 
-						{/* Current Player Info */}
-						<div className="player-info current-player-info">
-							<div className="player-avatar">
-								<Icon name='user circle' size='big' style={{ color: '#4CAF50' }} />
-							</div>
-							<div className="player-details">
-								<div className="player-name">
-									{orientation === 'white' 
-										? (game.players[0] || locState.username) 
-										: (game.players[1] || locState.username)}
-								</div>
-								<div className="player-role">
-									{orientation === 'white' ? 'Player 1 (White)' : 'Player 2 (Black)'}
-								</div>
-								<div className="player-badge">Bạn</div>
-							</div>
+					{/* Current Player Info */}
+					<div className="player-info current-player-info">
+						<div className="player-avatar">
+							<Icon name='user circle' size='big' style={{ color: '#4CAF50' }} />
 						</div>
-
-						{/* Game Controls */}
+					<div className="player-details">
+						<div className="player-name">
+							{orientation === 'white' 
+								? (game.playerInfo?.[0]?.fullname || game.players?.[0] || locState.username) 
+								: (game.playerInfo?.[1]?.fullname || game.players?.[1] || locState.username)}
+						</div>
+							<div className="player-role">
+								{orientation === 'white' ? 'Player 1 (White)' : 'Player 2 (Black)'}
+							</div>
+							<div className="player-badge">Bạn</div>
+						</div>
+					</div>						{/* Game Controls */}
 						<div className="game-controls">
 							<Button 
 								className="control-button resign-button"

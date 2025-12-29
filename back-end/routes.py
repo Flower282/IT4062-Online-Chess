@@ -3,8 +3,10 @@ Routes
 Định nghĩa các API endpoints
 """
 from aiohttp import web
-from controllers.auth_controller import register, login, get_profile
+from controllers.auth_controller import register, login, get_profile, verify_token
 from controllers.user_controller import get_user, get_users
+from utils.jwt_utils import token_required
+from utils.jwt_utils import token_required
 
 
 async def register_handler(request):
@@ -22,6 +24,13 @@ async def login_handler(request):
 async def get_profile_handler(request):
     """Handler cho API lấy profile"""
     result = await get_profile(request)
+    return web.json_response(result)
+
+
+@token_required
+async def verify_token_handler(request):
+    """Handler cho API verify token"""
+    result = await verify_token(request)
     return web.json_response(result)
 
 
@@ -45,6 +54,7 @@ def setup_routes(app):
         POST /api/auth/register - Đăng ký
         POST /api/auth/login - Đăng nhập
         GET /api/auth/profile - Lấy profile
+        GET /api/auth/me - Verify token và lấy thông tin user (Protected)
     
     User routes:
         GET /api/users - Lấy danh sách users
@@ -54,6 +64,7 @@ def setup_routes(app):
     app.router.add_post('/api/auth/register', register_handler)
     app.router.add_post('/api/auth/login', login_handler)
     app.router.add_get('/api/auth/profile', get_profile_handler)
+    app.router.add_get('/api/auth/me', verify_token_handler)
     
     # User routes
     app.router.add_get('/api/users', get_users_handler)
@@ -64,5 +75,6 @@ def setup_routes(app):
     print("  POST /api/auth/register")
     print("  POST /api/auth/login")
     print("  GET /api/auth/profile")
+    print("  GET /api/auth/me (Protected)")
     print("  GET /api/users")
     print("  GET /api/user")

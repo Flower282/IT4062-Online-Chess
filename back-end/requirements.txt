@@ -69,3 +69,4 @@ zipp
 pymongo
 python-dotenv
 bcrypt
+PyJWT

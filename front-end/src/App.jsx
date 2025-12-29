@@ -6,7 +6,7 @@ import { PrivateRoute, Login, Register, ChessBoard } from './routes/router';
 import NewGameButtons from './components/NewGameButtons.jsx';
 import Toast from './components/Toast.jsx';
 import ChallengeModal from './components/ChallengeModal.jsx';
-import { getCurrentUser, getAllUsers, getUser, logoutUser } from './api/user';
+import { getCurrentUser, getAllUsers, getUser, logoutUser, verifyToken, isAuthenticated } from './api/user';
 import { useHistory } from 'react-router-dom';
 import socket from './SocketConfig';
 
@@ -16,32 +16,74 @@ function HomePage() {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [toast, setToast] = useState(null);
   const [challengeModal, setChallengeModal] = useState({ open: false, senderInfo: null });
+  const [loading, setLoading] = useState(true);
+  const [waitingForResponse, setWaitingForResponse] = useState(false); // Track if waiting for challenge response
   const history = useHistory();
 
   useEffect(() => {
-    // Lấy thông tin user hiện tại từ localStorage
-    const user = getCurrentUser();
-    console.log('Current user from localStorage:', user);
-    
-    // Nếu không có user trong localStorage, lấy từ username cũ
-    if (!user) {
-      const username = localStorage.getItem('username');
-      if (username) {
-        // Fetch thông tin đầy đủ từ API
-        fetchUserInfo(username);
+    // Token persistence: Verify token khi app load
+    const initializeAuth = async () => {
+      try {
+        console.log('=== INITIALIZING AUTH ===');
+        
+        // Kiểm tra xem có token không
+        if (isAuthenticated()) {
+          console.log('Token found in localStorage');
+          
+          // Small delay to ensure localStorage is fully written
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          try {
+            // Gọi API verify token
+            console.log('Calling verifyToken API...');
+            const response = await verifyToken();
+            
+            if (response.success && response.user) {
+              console.log('✓ Token valid, user:', response.user);
+              setCurrentUser(response.user);
+              
+              // Cập nhật localStorage với thông tin mới nhất
+              localStorage.setItem('user', JSON.stringify(response.user));
+              
+              // Emit user_login to server
+              socket.emit('user_login', {
+                username: response.user.username,
+                fullname: response.user.fullname || response.user.username,
+                elo: response.user.elo || 1200
+              });
+              
+              console.log('✓ Emitted user_login:', response.user.username);
+            } else {
+              // Token không hợp lệ, redirect về login
+              console.log('✗ Token invalid, redirecting to login');
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              history.push('/login');
+            }
+          } catch (verifyError) {
+            console.error('Token verification failed:', verifyError);
+            // Token có thể hết hạn hoặc không hợp lệ
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            history.push('/login');
+          }
+        } else {
+          // Không có token
+          console.log('✗ No token found, redirecting to login');
+          localStorage.removeItem('user');
+          history.push('/login');
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        history.push('/login');
+      } finally {
+        setLoading(false);
       }
-    } else {
-      setCurrentUser(user);
-      
-      // Emit user_login to server immediately after getting user info
-      socket.emit('user_login', {
-        username: user.username,
-        fullname: user.fullname || user.username,
-        elo: user.elo || 1200
-      });
-      
-      console.log('Emitted user_login:', user.username);
-    }
+    };
+    
+    initializeAuth();
 
     // Listen for real-time online users updates from server
     socket.on('update_online_users', (data) => {
@@ -53,23 +95,38 @@ function HomePage() {
 
     // Socket listeners for challenge feature
     socket.on('receive_challenge', (data) => {
+      console.log('=== RECEIVE_CHALLENGE EVENT ===');
       console.log('Received challenge:', data);
-      setChallengeModal({
-        open: true,
-        senderInfo: data.senderInfo
-      });
+      console.log('Current user:', currentUser?.username);
+      console.log('Sender:', data.senderInfo?.username);
+      console.log('Should show modal:', data.senderInfo?.username !== currentUser?.username);
+      
+      // Only show modal if the challenge is NOT from yourself
+      if (data.senderInfo?.username !== currentUser?.username) {
+        setChallengeModal({
+          open: true,
+          senderInfo: data.senderInfo
+        });
+      } else {
+        console.warn('Received challenge from self - ignoring');
+      }
     });
 
     socket.on('challenge_sent', (data) => {
+      console.log('=== CHALLENGE_SENT EVENT ===');
       console.log('Challenge sent to:', data.targetUsername);
+      console.log('Waiting for response from opponent...');
+      setWaitingForResponse(true); // Set waiting state
       setToast({
-        message: 'Đã gửi lời mời thách đấu!',
+        message: 'Đã gửi lời mời thách đấu! Đang chờ phản hồi...',
         type: 'success'
       });
     });
 
     socket.on('challenge_failed', (data) => {
+      console.log('=== CHALLENGE_FAILED EVENT ===');
       console.log('Challenge failed:', data.message);
+      setWaitingForResponse(false); // Clear waiting state
       setToast({
         message: data.message || 'Gửi thách đấu thất bại',
         type: 'error'
@@ -77,21 +134,53 @@ function HomePage() {
     });
 
     socket.on('challenge_declined', (data) => {
+      console.log('=== CHALLENGE_DECLINED EVENT ===');
       console.log('Challenge declined by:', data.responder);
+      setWaitingForResponse(false); // Clear waiting state
       setToast({
         message: `${data.responder.fullname || data.responder.username} đã từ chối thách đấu`,
         type: 'warning'
       });
     });
+    
+    socket.on('challenge_error', (data) => {
+      console.log('=== CHALLENGE_ERROR EVENT ===');
+      console.log('Challenge error:', data.message);
+      setWaitingForResponse(false); // Clear waiting state
+      setToast({
+        message: data.message || 'Lỗi trong quá trình thách đấu',
+        type: 'error'
+      });
+    });
 
     socket.on('game_start', (data) => {
+      console.log('=== GAME_START EVENT ===');
       console.log('Game starting:', data);
-      // Redirect to game with gameId
+      console.log('Game ID:', data.gameId);
+      console.log('Game object:', data.game);
+      console.log('Opponent:', data.opponent);
+      console.log('Current user:', currentUser);
+      
+      setWaitingForResponse(false); // Clear waiting state
+      
+      // Validate data
+      if (!data.game || !data.game.id) {
+        console.error('ERROR: Invalid game data received!');
+        setToast({
+          message: 'Lỗi khi tạo phòng chơi',
+          type: 'error'
+        });
+        return;
+      }
+      
+      console.log('✓ Redirecting to game...');
+      
+      // Redirect to game with full game object
       history.push({
         pathname: '/game',
         state: {
           username: currentUser?.username,
-          game: { id: data.gameId }
+          game: data.game
         }
       });
     });
@@ -103,6 +192,7 @@ function HomePage() {
       socket.off('challenge_sent');
       socket.off('challenge_failed');
       socket.off('challenge_declined');
+      socket.off('challenge_error');
       socket.off('game_start');
     };
   }, [currentUser?.username, history]);
@@ -155,10 +245,14 @@ function HomePage() {
   };
 
   const handleChallenge = (opponentUsername) => {
+    console.log('=== HANDLE_CHALLENGE ===');
     console.log('Challenge sent to:', opponentUsername);
+    console.log('Current user:', currentUser?.username);
+    console.log('Current user fullname:', currentUser?.fullname);
     
     // Find opponent info
     const opponent = onlineUsers.find(u => u.username === opponentUsername);
+    console.log('Opponent found:', opponent);
     
     // Emit challenge to server
     socket.emit('send_challenge', {
@@ -169,6 +263,8 @@ function HomePage() {
         elo: currentUser?.elo
       }
     });
+    
+    console.log('Emitted send_challenge to server');
   };
 
   const handleAcceptChallenge = () => {
@@ -206,6 +302,25 @@ function HomePage() {
     user => user.username !== currentUser?.username
   );
 
+  // Show loading while verifying token
+  if (loading) {
+    return (
+      <div className="home-container" style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <Icon name='chess' size='huge' loading style={{ color: '#4CAF50' }} />
+          <Header as='h3' style={{ marginTop: '20px', color: '#111827' }}>
+            Đang xác thực...
+          </Header>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="home-container">
       {/* Toast Notification */}
@@ -215,6 +330,49 @@ function HomePage() {
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+      
+      {/* Waiting for Response Modal */}
+      {waitingForResponse && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            padding: '40px',
+            borderRadius: '12px',
+            textAlign: 'center',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+            maxWidth: '400px'
+          }}>
+            <Icon name='hourglass half' size='huge' loading style={{ color: '#FF9800' }} />
+            <Header as='h3' style={{ marginTop: '20px', color: '#111827' }}>
+              Đang chờ phản hồi...
+            </Header>
+            <p style={{ color: '#6B7280', marginTop: '10px' }}>
+              Đối thủ đang xem xét lời thách đấu của bạn
+            </p>
+            <Button
+              onClick={() => setWaitingForResponse(false)}
+              style={{
+                marginTop: '20px',
+                backgroundColor: '#EF4444',
+                color: '#fff'
+              }}
+            >
+              Hủy
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Challenge Modal */}

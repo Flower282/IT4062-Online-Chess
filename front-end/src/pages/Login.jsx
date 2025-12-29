@@ -1,23 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, Redirect } from 'react-router-dom';
+import { Link, useHistory } from 'react-router-dom';
 import { Form, Button, Message, Container, Header, Segment } from 'semantic-ui-react';
-import { loginUser } from '../api/user';
+import { loginUser, isAuthenticated } from '../api/user';
 import '../css/Login.css';
 
 function Login() {
 	const [username, setUsername] = useState('');
 	const [password, setPassword] = useState('');
 	const [error, setError] = useState('');
-	const [redirect, setRedirect] = useState(false);
 	const [loading, setLoading] = useState(false);
+	const [isLoggedIn, setIsLoggedIn] = useState(false);
 	const isMounted = useRef(true);
+	const history = useHistory();
 
 	useEffect(() => {
-		// Cleanup function để đánh dấu component đã unmount
+		// Check if already logged in
+		if (isAuthenticated()) {
+			console.log('Already authenticated, redirecting to home');
+			history.push('/home');
+		}
+		
+		// Cleanup function
 		return () => {
 			isMounted.current = false;
 		};
-	}, []);
+	}, [history]);
+	
+	// Separate useEffect to handle redirect after successful login
+	useEffect(() => {
+		if (isLoggedIn && isAuthenticated()) {
+			console.log('Login state changed, token verified, redirecting...');
+			// Small delay to ensure token is fully saved
+			const timer = setTimeout(() => {
+				history.push('/home');
+			}, 100);
+			return () => clearTimeout(timer);
+		}
+	}, [isLoggedIn, history]);
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
@@ -38,10 +57,19 @@ function Login() {
 			if (!isMounted.current) return;
 			
 			if (response.success) {
-				// Lưu thông tin user vào localStorage
-				localStorage.setItem('username', username);
-				localStorage.setItem('isLoggedIn', 'true');
-				setRedirect(true);
+				console.log('Login successful, token:', response.token);
+				console.log('User data:', response.user);
+				
+				// Verify token is saved before setting login state
+				await new Promise(resolve => setTimeout(resolve, 50));
+				
+				if (isAuthenticated()) {
+					console.log('Token verified in localStorage');
+					setIsLoggedIn(true);
+				} else {
+					console.error('Token not found after login!');
+					setError('Lỗi lưu phiên đăng nhập. Vui lòng thử lại.');
+				}
 			} else {
 				setError(response.message || 'Đăng nhập thất bại');
 			}
@@ -49,6 +77,7 @@ function Login() {
 			// Chỉ cập nhật state nếu component vẫn mounted
 			if (!isMounted.current) return;
 			setError(error.message || 'Lỗi kết nối server');
+			console.error('Login error:', error);
 		} finally {
 			// Chỉ cập nhật state nếu component vẫn mounted
 			if (isMounted.current) {
@@ -56,10 +85,6 @@ function Login() {
 			}
 		}
 	};
-
-	if (redirect) {
-		return <Redirect to="/home" />;
-	}
 
 	return (
 		<Container className="login-container">
