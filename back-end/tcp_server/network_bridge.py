@@ -6,9 +6,21 @@ This module provides a Python interface to the C TCP server using ctypes.
 import ctypes
 import json
 import os
+import sys
+import time
 from enum import IntEnum
 from typing import Optional, Dict, Any, Callable
 from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from database import get_db_connection, init_db
+from services.user_service import create_user, verify_user, get_user_by_username
+from services.game_service import (
+    create_game, get_game, update_game_state, end_game,
+    get_user_game_history, get_user_stats, validate_move, get_game_pgn
+)
 
 
 # ========== Message Type Enums ==========
@@ -417,67 +429,408 @@ class NetworkManager:
 # ========== Example Usage ==========
 
 if __name__ == "__main__":
+    # Initialize database
+    print("=" * 60)
+    print("  Initializing Database...")
+    print("=" * 60)
+    try:
+        init_db()
+        print("✓ Database ready\n")
+    except Exception as e:
+        print(f"✗ Database connection failed: {e}")
+        print("  Please check MongoDB connection and try again\n")
+        sys.exit(1)
+    
     # Create network manager
     manager = NetworkManager()
     
-    # Define message handlers
-    def handle_login(client_fd: int, data: Dict):
-        username = data.get('username', '')
-        password = data.get('password', '')
-        
-        print(f"Login attempt: {username}")
-        
-        # TODO: Validate credentials with database
-        # For now, accept all logins
-        
-        # Update session
-        manager.update_client_session(
-            client_fd,
-            authenticated=True,
-            username=username,
-            user_id=12345
-        )
-        
-        # Send login result
-        manager.send_to_client(client_fd, MessageTypeS2C.LOGIN_RESULT, {
-            'success': True,
-            'user_id': 12345,
-            'username': username,
-            'rating': 1500
-        })
+    # Store active games and matchmaking queue
+    active_games = {}
+    matchmaking_queue = []
     
+    # Define message handlers with database integration
+    
+    # 0x0001 - REGISTER: Quản lý người dùng: Yêu cầu đăng ký
     def handle_register(client_fd: int, data: Dict):
         username = data.get('username', '')
         password = data.get('password', '')
         email = data.get('email', '')
+        fullname = data.get('fullname', username)
         
-        print(f"Register attempt: {username}")
+        print(f"📝 Register attempt: {username} ({email})")
         
-        # TODO: Create user in database
+        # Create user in database
+        result = create_user(fullname=fullname, username=username, password=password)
         
-        # Send register result
+        # Send register result (0x1001 - REGISTER_RESULT)
         manager.send_to_client(client_fd, MessageTypeS2C.REGISTER_RESULT, {
-            'success': True,
-            'message': 'Account created successfully'
+            'success': result['success'],
+            'message': result['message']
         })
     
+    # 0x0002 - LOGIN: Quản lý người dùng: Yêu cầu đăng nhập
+    def handle_login(client_fd: int, data: Dict):
+        username = data.get('email', '').split('@')[0] if '@' in data.get('email', '') else data.get('username', '')
+        password = data.get('password', '')
+        
+        print(f"🔐 Login attempt: {username}")
+        
+        # Verify credentials from database
+        result = verify_user(username=username, password=password)
+        
+        if result['success']:
+            user = result['user']
+            
+            # Update session
+            manager.update_client_session(
+                client_fd,
+                authenticated=True,
+                username=user['username'],
+                user_id=user['_id']
+            )
+            
+            # Send login result (0x1002 - LOGIN_RESULT)
+            manager.send_to_client(client_fd, MessageTypeS2C.LOGIN_RESULT, {
+                'success': True,
+                'user_id': user['_id'],
+                'username': user['username'],
+                'fullname': user['fullname'],
+                'rating': user['elo'],
+                'wins': 0,  # Will be fetched from stats
+                'losses': 0,
+                'draws': 0
+            })
+        else:
+            # Send login failure
+            manager.send_to_client(client_fd, MessageTypeS2C.LOGIN_RESULT, {
+                'success': False,
+                'message': result['message']
+            })
+    
+    
+    # 0x0010 - FIND_MATCH: Ghép cặp: Yêu cầu tìm trận (dựa trên ELO)
     def handle_find_match(client_fd: int, data: Dict):
-        print(f"Find match request from fd={client_fd}")
+        print(f"🔍 Find match request from fd={client_fd}")
         
-        # TODO: Add to matchmaking queue
+        # Get user session
+        session = manager.client_sessions.get(client_fd, {})
+        if not session.get('authenticated'):
+            return
         
-        # For demo, immediately send match found
-        manager.send_to_client(client_fd, MessageTypeS2C.MATCH_FOUND, {
-            'opponent_id': 67890,
-            'opponent_username': 'TestOpponent',
-            'opponent_rating': 1520,
-            'game_id': 'game_12345'
+        # Add to matchmaking queue
+        matchmaking_queue.append(client_fd)
+        
+        # Match players if we have 2+ in queue
+        if len(matchmaking_queue) >= 2:
+            player1_fd = matchmaking_queue.pop(0)
+            player2_fd = matchmaking_queue.pop(0)
+            
+            player1_session = manager.client_sessions.get(player1_fd, {})
+            player2_session = manager.client_sessions.get(player2_fd, {})
+            
+            game_id = f'pvp_{int(time.time())}'
+            
+            # Create game in database
+            game_result = create_game(
+                game_id=game_id,
+                white_player_id=player1_session.get('user_id'),
+                black_player_id=player2_session.get('user_id'),
+                white_username=player1_session.get('username', 'Player1'),
+                black_username=player2_session.get('username', 'Player2'),
+                time_control={'initial': 600, 'increment': 5}
+            )
+            
+            if game_result['success']:
+                active_games[game_id] = game_result['game']
+                
+                # Send to both players
+                for fd, color in [(player1_fd, 'white'), (player2_fd, 'black')]:
+                    opponent_session = player2_session if fd == player1_fd else player1_session
+                    
+                    manager.send_to_client(fd, MessageTypeS2C.MATCH_FOUND, {
+                        'opponent_id': opponent_session.get('user_id'),
+                        'opponent_username': opponent_session.get('username'),
+                        'opponent_rating': 1500
+                    })
+                    
+                    manager.send_to_client(fd, MessageTypeS2C.GAME_START, {
+                        'game_id': game_id,
+                        'color': color,
+                        'opponent_color': 'black' if color == 'white' else 'white',
+                        'opponent_username': opponent_session.get('username'),
+                        'opponent_rating': 1500,
+                        'time_control': {'initial': 600, 'increment': 5},
+                        'fen': game_result['game']['fen']
+                    })
+    
+    # 0x0011 - CANCEL_FIND_MATCH: Ghép cặp: Hủy yêu cầu tìm trận
+    def handle_cancel_find_match(client_fd: int, data: Dict):
+        print(f"❌ Cancel matchmaking from fd={client_fd}")
+        
+        if client_fd in matchmaking_queue:
+            matchmaking_queue.remove(client_fd)
+            print(f"✓ Removed from queue")
+    
+    # 0x0012 - FIND_AI_MATCH: Tính năng nâng cao: Yêu cầu đấu với AI (kèm tùy chỉnh)
+    def handle_find_ai_match(client_fd: int, data: Dict):
+        difficulty = data.get('difficulty', 'medium')
+        color = data.get('color', 'white')
+        
+        print(f"🤖 AI match request from fd={client_fd}: difficulty={difficulty}, color={color}")
+        
+        # Get user session
+        session = manager.client_sessions.get(client_fd, {})
+        if not session.get('authenticated'):
+            return
+        
+        game_id = f'ai_{client_fd}_{int(time.time())}'
+        
+        # Create AI game in database
+        game_result = create_game(
+            game_id=game_id,
+            white_player_id=session.get('user_id') if color == 'white' else -1,
+            black_player_id=session.get('user_id') if color == 'black' else -1,
+            white_username=session.get('username', 'Player') if color == 'white' else f'AI Bot ({difficulty.capitalize()})',
+            black_username=session.get('username', 'Player') if color == 'black' else f'AI Bot ({difficulty.capitalize()})',
+            time_control={'initial': 600, 'increment': 5},
+            is_ai_game=True,
+            ai_difficulty=difficulty
+        )
+        
+        if game_result['success']:
+            active_games[game_id] = game_result['game']
+            
+            # Send game start notification (0x1101 - GAME_START)
+            manager.send_to_client(client_fd, MessageTypeS2C.GAME_START, {
+                'game_id': game_id,
+                'opponent_username': f'AI Bot ({difficulty.capitalize()})',
+                'opponent_id': -1,
+                'opponent_rating': {'easy': 1000, 'medium': 1500, 'hard': 2000}.get(difficulty, 1500),
+                'color': color,
+                'opponent_color': 'black' if color == 'white' else 'white',
+                'time_control': {'initial': 600, 'increment': 5},
+                'fen': game_result['game']['fen']
+            })
+    
+    # 0x0020 - MAKE_MOVE: Gameplay: Thực hiện một nước đi
+    def handle_make_move(client_fd: int, data: Dict):
+        game_id = data.get('game_id', '')
+        move = data.get('move', '')  # UCI format: e2e4
+        
+        print(f"♟️  Move from fd={client_fd}: {move} in game {game_id}")
+        
+        # Validate move with chess engine
+        validation = validate_move(game_id, move)
+        
+        if validation['valid']:
+            # Update game state in database
+            update_game_state(game_id, move, validation['fen'])
+            
+            # Send game state update (0x1200 - GAME_STATE_UPDATE)
+            manager.send_to_client(client_fd, MessageTypeS2C.GAME_STATE_UPDATE, {
+                'game_id': game_id,
+                'fen': validation['fen'],
+                'last_move': move,
+                'turn': 'black' if 'w' in validation['fen'] else 'white',
+                'in_check': validation.get('in_check', False),
+                'game_over': validation['game_over']
+            })
+            
+            # If game over, end game and update ELO
+            if validation['game_over']:
+                end_game(game_id, validation['result'], 'completed')
+                
+                manager.send_to_client(client_fd, MessageTypeS2C.GAME_OVER, {
+                    'game_id': game_id,
+                    'result': validation['result'],
+                    'reason': 'Checkmate' if 'win' in validation['result'] else 'Draw'
+                })
+        else:
+            # Invalid move (0x1201 - INVALID_MOVE)
+            manager.send_to_client(client_fd, MessageTypeS2C.INVALID_MOVE, {
+                'reason': validation.get('reason', 'Invalid move')
+            })
+    
+    # 0x0021 - RESIGN: Điều khiển trận: Xin đầu hàng
+    def handle_resign(client_fd: int, data: Dict):
+        game_id = data.get('game_id', '')
+        
+        print(f"🏳️  Resign from fd={client_fd} in game {game_id}")
+        
+        # Get game info to determine winner
+        game = get_game(game_id)
+        if game:
+            session = manager.client_sessions.get(client_fd, {})
+            user_id = session.get('user_id')
+            
+            # Determine result based on who resigned
+            if str(game['white_player_id']) == str(user_id):
+                result = 'black_win'
+            else:
+                result = 'white_win'
+            
+            # End game in database
+            end_game(game_id, result, 'resigned')
+            
+            # Send game over (0x1202 - GAME_OVER)
+            manager.send_to_client(client_fd, MessageTypeS2C.GAME_OVER, {
+                'game_id': game_id,
+                'result': result,
+                'winner': 'opponent',
+                'reason': 'Player resigned'
+            })
+            
+            # Cleanup
+            if game_id in active_games:
+                del active_games[game_id]
+    
+    # 0x0022 - OFFER_DRAW: Điều khiển trận: Đề nghị hòa
+    def handle_offer_draw(client_fd: int, data: Dict):
+        game_id = data.get('game_id', '')
+        
+        print(f"🤝 Draw offer from fd={client_fd} in game {game_id}")
+        
+        # TODO: Forward to opponent
+        # For now, just acknowledge (0x1203 - DRAW_OFFER_RECEIVED)
+        manager.send_to_client(client_fd, MessageTypeS2C.DRAW_OFFER_RECEIVED, {
+            'game_id': game_id,
+            'message': 'Draw offer sent to opponent'
         })
     
-    # Register handlers
-    manager.register_handler(MessageTypeC2S.LOGIN, handle_login)
+    # 0x0023 - ACCEPT_DRAW: Điều khiển trận: Chấp nhận đề nghị hòa
+    def handle_accept_draw(client_fd: int, data: Dict):
+        game_id = data.get('game_id', '')
+        
+        print(f"✅ Draw accepted from fd={client_fd} in game {game_id}")
+        
+        # End game with draw result
+        end_game(game_id, 'draw', 'draw')
+        
+        # Send game over (0x1202 - GAME_OVER)
+        manager.send_to_client(client_fd, MessageTypeS2C.GAME_OVER, {
+            'game_id': game_id,
+            'result': 'draw',
+            'reason': 'Draw by agreement'
+        })
+        
+        # Cleanup
+        if game_id in active_games:
+            del active_games[game_id]
+    
+    # 0x0024 - DECLINE_DRAW: Điều khiển trận: Từ chối đề nghị hòa
+    def handle_decline_draw(client_fd: int, data: Dict):
+        game_id = data.get('game_id', '')
+        
+        print(f"❌ Draw declined from fd={client_fd} in game {game_id}")
+        
+        # Send notification (0x1204 - DRAW_OFFER_DECLINED)
+        manager.send_to_client(client_fd, MessageTypeS2C.DRAW_OFFER_DECLINED, {
+            'game_id': game_id,
+            'message': 'Opponent declined draw offer'
+        })
+    
+    # 0x0030 - GET_STATS: Hệ thống Xếp hạng: Yêu cầu xem thống kê (ELO, W/L/D)
+    def handle_get_stats(client_fd: int, data: Dict):
+        user_id = data.get('user_id', None)
+        
+        # If no user_id provided, use current session user
+        if not user_id:
+            session = manager.client_sessions.get(client_fd, {})
+            user_id = session.get('user_id')
+        
+        print(f"📊 Stats request from fd={client_fd} for user {user_id}")
+        
+        # Get stats from database
+        stats = get_user_stats(user_id)
+        
+        if stats:
+            # Send stats response (0x1300 - STATS_RESPONSE)
+            manager.send_to_client(client_fd, MessageTypeS2C.STATS_RESPONSE, stats)
+        else:
+            manager.send_to_client(client_fd, MessageTypeS2C.STATS_RESPONSE, {
+                'error': 'User not found'
+            })
+    
+    # 0x0031 - GET_HISTORY: Hệ thống Lịch sử: Yêu cầu xem lịch sử các ván đấu
+    def handle_get_history(client_fd: int, data: Dict):
+        print(f"📜 History request from fd={client_fd}")
+        
+        # Get user session
+        session = manager.client_sessions.get(client_fd, {})
+        user_id = session.get('user_id')
+        
+        if user_id:
+            # Get game history from database
+            history = get_user_game_history(user_id, limit=20)
+            
+            # Send history response (0x1301 - HISTORY_RESPONSE)
+            manager.send_to_client(client_fd, MessageTypeS2C.HISTORY_RESPONSE, {
+                'games': history
+            })
+        else:
+            manager.send_to_client(client_fd, MessageTypeS2C.HISTORY_RESPONSE, {
+                'games': [],
+                'error': 'Not authenticated'
+            })
+    
+    # 0x0032 - GET_REPLAY: Hệ thống Lịch sử: Yêu cầu dữ liệu xem lại (replay) 1 ván cụ thể
+    def handle_get_replay(client_fd: int, data: Dict):
+        game_id = data.get('game_id', '')
+        
+        print(f"🎬 Replay request from fd={client_fd} for game {game_id}")
+        
+        # Get game from database
+        game = get_game(game_id)
+        
+        if game:
+            # Generate PGN
+            pgn = get_game_pgn(game_id)
+            
+            # Send replay data (0x1302 - REPLAY_DATA)
+            manager.send_to_client(client_fd, MessageTypeS2C.REPLAY_DATA, {
+                'game_id': game_id,
+                'pgn': pgn if pgn else '',
+                'moves': game['moves'],
+                'white_player': game['white_username'],
+                'black_player': game['black_username'],
+                'result': game['result']
+            })
+        else:
+            manager.send_to_client(client_fd, MessageTypeS2C.REPLAY_DATA, {
+                'error': 'Game not found'
+            })
+    
+    # Register all handlers
     manager.register_handler(MessageTypeC2S.REGISTER, handle_register)
+    manager.register_handler(MessageTypeC2S.LOGIN, handle_login)
     manager.register_handler(MessageTypeC2S.FIND_MATCH, handle_find_match)
+    manager.register_handler(MessageTypeC2S.CANCEL_FIND_MATCH, handle_cancel_find_match)
+    manager.register_handler(MessageTypeC2S.FIND_AI_MATCH, handle_find_ai_match)
+    manager.register_handler(MessageTypeC2S.MAKE_MOVE, handle_make_move)
+    manager.register_handler(MessageTypeC2S.RESIGN, handle_resign)
+    manager.register_handler(MessageTypeC2S.OFFER_DRAW, handle_offer_draw)
+    manager.register_handler(MessageTypeC2S.ACCEPT_DRAW, handle_accept_draw)
+    manager.register_handler(MessageTypeC2S.DECLINE_DRAW, handle_decline_draw)
+    manager.register_handler(MessageTypeC2S.GET_STATS, handle_get_stats)
+    manager.register_handler(MessageTypeC2S.GET_HISTORY, handle_get_history)
+    manager.register_handler(MessageTypeC2S.GET_REPLAY, handle_get_replay)
+    
+    print("=" * 60)
+    print("✓ All message handlers registered:")
+    print("  📝 0x0001 REGISTER - User registration")
+    print("  🔐 0x0002 LOGIN - User login")
+    print("  🔍 0x0010 FIND_MATCH - Matchmaking")
+    print("  ❌ 0x0011 CANCEL_FIND_MATCH - Cancel matchmaking")
+    print("  🤖 0x0012 FIND_AI_MATCH - AI game")
+    print("  ♟️  0x0020 MAKE_MOVE - Make a move")
+    print("  🏳️  0x0021 RESIGN - Resign game")
+    print("  🤝 0x0022 OFFER_DRAW - Offer draw")
+    print("  ✅ 0x0023 ACCEPT_DRAW - Accept draw")
+    print("  ❌ 0x0024 DECLINE_DRAW - Decline draw")
+    print("  📊 0x0030 GET_STATS - Get user stats")
+    print("  📜 0x0031 GET_HISTORY - Get game history")
+    print("  🎬 0x0032 GET_REPLAY - Get game replay")
+    print("=" * 60)
     
     # Start server
     if manager.start(port=8765):

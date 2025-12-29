@@ -1,0 +1,14 @@
+# Chess Desktop App - Requirements
+
+# GUI Framework
+PyQt6>=6.6.0
+PyQt6-Qt6>=6.6.0
+
+# Chess Engine
+python-chess>=1.999
+
+# Networking (built-in, but listed for reference)
+# socket - built-in
+# struct - built-in
+# json - built-in
+# threading - built-in
