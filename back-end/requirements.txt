@@ -1,72 +1,20 @@
-absl-py
-aiohttp
-aiohttp-cors==0.7.0
-appnope
-astor==0.8.1
-async-timeout==3.0.1
-attrs
-backcall
-bidict
-certifi==2021.5.30
-cffi
-chardet
-coverage
-cryptography
-Cython
-decorator
-dnspython==1.16.0
-eventlet
-gast==0.2.2
-google-pasta==0.2.0
-greenlet
-grpcio
-h5py
-idna
-idna-ssl
-importlib-metadata
-ipykernel
-ipython
-ipython-genutils
-jedi==0.17.0
-joblib
-jupyter-client
-jupyter-core
-Keras-Applications
-Keras-Preprocessing
-Markdown
-multidict
-numpy
-opt-einsum
-pandas
-parso
-pexpect
-pickleshare
-prompt-toolkit
-protobuf==3.17.2
-ptyprocess
-pycparser
-Pygments
-pyOpenSSL
-python-chess==0.31.4
-python-dateutil
-python-engineio
-python-socketio
-pytz
-pyzmq==20.0.0
-scikit-learn
-scipy
-six 
-stockfish==3.17.0   
-termcolor==1.1.0
-tornado
-traitlets==4.3.3
-typing-extensions
-wcwidth
-Werkzeug
-wrapt==1.12.1
-yarl
-zipp
-pymongo
-python-dotenv
-bcrypt
-PyJWT
+# Core dependencies for TCP Chess Server
+# Database
+pymongo>=4.0.0
+python-dotenv>=0.19.0
+
+# Authentication
+bcrypt>=3.2.0
+PyJWT>=2.3.0
+
+# Chess engine
+python-chess>=1.9.0
+
+# Optional: AI/ML dependencies (uncomment if needed)
+# numpy
+# scikit-learn
+# scipy
+# pandas
+
+# Optional: Stockfish wrapper (uncomment if needed)
+# stockfish>=3.17.0
