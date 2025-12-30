@@ -488,6 +488,7 @@ const char* get_message_type_name(uint16_t message_id) {
         /* C2S */
         case MSG_C2S_REGISTER: return "REGISTER";
         case MSG_C2S_LOGIN: return "LOGIN";
+        case MSG_C2S_GET_ONLINE_USERS: return "GET_ONLINE_USERS";
         case MSG_C2S_FIND_MATCH: return "FIND_MATCH";
         case MSG_C2S_CANCEL_FIND_MATCH: return "CANCEL_FIND_MATCH";
         case MSG_C2S_FIND_AI_MATCH: return "FIND_AI_MATCH";
@@ -504,6 +505,7 @@ const char* get_message_type_name(uint16_t message_id) {
         case MSG_S2C_REGISTER_RESULT: return "REGISTER_RESULT";
         case MSG_S2C_LOGIN_RESULT: return "LOGIN_RESULT";
         case MSG_S2C_USER_STATUS_UPDATE: return "USER_STATUS_UPDATE";
+        case MSG_S2C_ONLINE_USERS_LIST: return "ONLINE_USERS_LIST";
         case MSG_S2C_MATCH_FOUND: return "MATCH_FOUND";
         case MSG_S2C_GAME_START: return "GAME_START";
         case MSG_S2C_GAME_STATE_UPDATE: return "GAME_STATE_UPDATE";

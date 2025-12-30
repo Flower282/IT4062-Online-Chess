@@ -17,6 +17,7 @@ class MessageTypeC2S(IntEnum):
     """Client to Server message types"""
     REGISTER = 0x0001
     LOGIN = 0x0002
+    GET_ONLINE_USERS = 0x0003
     FIND_MATCH = 0x0010
     CANCEL_FIND_MATCH = 0x0011
     FIND_AI_MATCH = 0x0012
@@ -35,6 +36,7 @@ class MessageTypeS2C(IntEnum):
     REGISTER_RESULT = 0x1001
     LOGIN_RESULT = 0x1002
     USER_STATUS_UPDATE = 0x1003
+    ONLINE_USERS_LIST = 0x1004
     MATCH_FOUND = 0x1100
     GAME_START = 0x1101
     GAME_STATE_UPDATE = 0x1200
@@ -216,6 +218,10 @@ class NetworkClient(QObject):
             'email': email
         })
     
+    def get_online_users(self):
+        """Get list of online users"""
+        return self.send_message(MessageTypeC2S.GET_ONLINE_USERS, {})
+    
     def find_match(self):
         """Request matchmaking"""
         return self.send_message(MessageTypeC2S.FIND_MATCH, {})
@@ -236,6 +242,8 @@ class NetworkClient(QObject):
         uci_move = from_square + to_square
         if promotion:
             uci_move += promotion
+        
+        print(f"📤 Sending move to server: {uci_move} (game: {game_id})")
         
         move_data = {
             'game_id': game_id,

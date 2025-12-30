@@ -29,6 +29,7 @@ class MessageTypeC2S(IntEnum):
     """Client to Server message types"""
     REGISTER = 0x0001
     LOGIN = 0x0002
+    GET_ONLINE_USERS = 0x0003
     FIND_MATCH = 0x0010
     CANCEL_FIND_MATCH = 0x0011
     FIND_AI_MATCH = 0x0012
@@ -47,6 +48,7 @@ class MessageTypeS2C(IntEnum):
     REGISTER_RESULT = 0x1001
     LOGIN_RESULT = 0x1002
     USER_STATUS_UPDATE = 0x1003
+    ONLINE_USERS_LIST = 0x1004
     MATCH_FOUND = 0x1100
     GAME_START = 0x1101
     GAME_STATE_UPDATE = 0x1200
@@ -508,6 +510,60 @@ if __name__ == "__main__":
             })
     
     
+    # 0x0003 - GET_ONLINE_USERS: Lấy danh sách người chơi online
+    def handle_get_online_users(client_fd: int, data: Dict):
+        print(f"👥 Get online users request from fd={client_fd}")
+        
+        # Get current user session
+        current_session = manager.client_sessions.get(client_fd, {})
+        if not current_session.get('authenticated'):
+            manager.send_to_client(client_fd, MessageTypeS2C.ONLINE_USERS_LIST, {
+                'success': False,
+                'users': []
+            })
+            return
+        
+        current_username = current_session.get('username')
+        
+        # Collect online users (exclude current user)
+        online_users = []
+        for fd, session in manager.client_sessions.items():
+            if not session.get('authenticated'):
+                continue
+            
+            username = session.get('username')
+            if username == current_username:  # Skip current user
+                continue
+            
+            # Check if user is in a game
+            in_game = False
+            for game_id, game_info in active_games.items():
+                if game_info.get('is_ai_game'):
+                    if game_info.get('player_fd') == fd:
+                        in_game = True
+                        break
+                else:
+                    if game_info.get('white_fd') == fd or game_info.get('black_fd') == fd:
+                        in_game = True
+                        break
+            
+            user_info = {
+                'username': username,
+                'fullname': session.get('fullname', username),
+                'rating': session.get('rating', 1200),
+                'status': 'in_game' if in_game else 'available'
+            }
+            online_users.append(user_info)
+        
+        print(f"   Found {len(online_users)} online users")
+        
+        # Send response
+        manager.send_to_client(client_fd, MessageTypeS2C.ONLINE_USERS_LIST, {
+            'success': True,
+            'users': online_users
+        })
+    
+    
     # 0x0010 - FIND_MATCH: Ghép cặp: Yêu cầu tìm trận (dựa trên ELO)
     def handle_find_match(client_fd: int, data: Dict):
         print(f"🔍 Find match request from fd={client_fd}")
@@ -803,6 +859,7 @@ if __name__ == "__main__":
     # Register all handlers
     manager.register_handler(MessageTypeC2S.REGISTER, handle_register)
     manager.register_handler(MessageTypeC2S.LOGIN, handle_login)
+    manager.register_handler(MessageTypeC2S.GET_ONLINE_USERS, handle_get_online_users)
     manager.register_handler(MessageTypeC2S.FIND_MATCH, handle_find_match)
     manager.register_handler(MessageTypeC2S.CANCEL_FIND_MATCH, handle_cancel_find_match)
     manager.register_handler(MessageTypeC2S.FIND_AI_MATCH, handle_find_ai_match)
@@ -817,8 +874,10 @@ if __name__ == "__main__":
     
     print("=" * 60)
     print("✓ All message handlers registered:")
+    print(f"  Registered handlers: {list(manager.handlers.keys())}")
     print("  📝 0x0001 REGISTER - User registration")
     print("  🔐 0x0002 LOGIN - User login")
+    print("  👥 0x0003 GET_ONLINE_USERS - Get online users")
     print("  🔍 0x0010 FIND_MATCH - Matchmaking")
     print("  ❌ 0x0011 CANCEL_FIND_MATCH - Cancel matchmaking")
     print("  🤖 0x0012 FIND_AI_MATCH - AI game")

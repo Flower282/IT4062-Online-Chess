@@ -95,9 +95,15 @@ class ChessApplication(QStackedWidget):
         success = self.network.connect_to_server()
         
         if not success:
-            QMessageBox.critical(self, "Connection Error",
-                               "Failed to connect to server.\n"
-                               "Make sure the server is running on localhost:8765")
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Icon.Critical)
+            msg_box.setWindowTitle("Connection Error")
+            msg_box.setText("Failed to connect to server.\nMake sure the server is running on localhost:8765")
+            msg_box.setStyleSheet("""
+                QLabel { min-width: 350px; padding: 15px; font-size: 12px; }
+                QPushButton { min-width: 80px; min-height: 30px; }
+            """)
+            msg_box.exec()
     
     def on_network_connected(self):
         """Handle successful connection"""
@@ -108,9 +114,15 @@ class ChessApplication(QStackedWidget):
         print("✗ Disconnected from server")
         
         # Show error and return to login
-        QMessageBox.warning(self, "Disconnected",
-                          "Connection to server lost.\n"
-                          "Please reconnect.")
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("Disconnected")
+        msg_box.setText("Connection to server lost.\nPlease reconnect.")
+        msg_box.setStyleSheet("""
+            QLabel { min-width: 300px; padding: 15px; font-size: 12px; }
+            QPushButton { min-width: 80px; min-height: 30px; }
+        """)
+        msg_box.exec()
         
         # Return to login screen
         self.show_login()
@@ -224,9 +236,16 @@ class ChessApplication(QStackedWidget):
     def closeEvent(self, event):
         """Handle application close"""
         # Confirm quit
-        reply = QMessageBox.question(self, "Quit",
-                                    "Are you sure you want to quit?",
-                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Quit")
+        msg_box.setText("Are you sure you want to quit?")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setStyleSheet("""
+            QMessageBox { min-width: 400px; }
+            QLabel { min-width: 300px; padding: 15px; font-size: 13px; }
+            QPushButton { min-width: 90px; min-height: 32px; font-size: 12px; }
+        """)
+        reply = msg_box.exec()
         
         if reply == QMessageBox.StandardButton.Yes:
             # Disconnect from server

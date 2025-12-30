@@ -11,6 +11,7 @@ typedef enum {
     /* Authentication */
     MSG_C2S_REGISTER            = 0x0001,
     MSG_C2S_LOGIN               = 0x0002,
+    MSG_C2S_GET_ONLINE_USERS    = 0x0003,
     
     /* Matchmaking */
     MSG_C2S_FIND_MATCH          = 0x0010,
@@ -36,6 +37,7 @@ typedef enum {
     MSG_S2C_REGISTER_RESULT     = 0x1001,
     MSG_S2C_LOGIN_RESULT        = 0x1002,
     MSG_S2C_USER_STATUS_UPDATE  = 0x1003,
+    MSG_S2C_ONLINE_USERS_LIST   = 0x1004,
     
     /* Matchmaking Responses */
     MSG_S2C_MATCH_FOUND         = 0x1100,

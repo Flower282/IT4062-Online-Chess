@@ -362,13 +362,13 @@ class GameWindow(QWidget):
         elif message_id == MessageTypeS2C.DRAW_OFFER_DECLINED:
             self.handle_draw_offer_declined(data)
     
-    def on_move_made(self, from_square: str, to_square: str):
+    def on_move_made(self, from_square: str, to_square: str, promotion: str):
         """
         Handle move made on board
         Sends MSG_C2S_MAKE_MOVE (0x0020)
         """
-        # Send move to server with game_id
-        self.network.make_move(self.game_id, from_square, to_square)
+        # Send move to server with game_id and promotion piece if any
+        self.network.make_move(self.game_id, from_square, to_square, promotion if promotion else None)
         
         # Update status
         self.status_label.setText("Waiting for server...")
@@ -421,9 +421,8 @@ class GameWindow(QWidget):
                 border-radius: 8px;
             """)
         
-        # Check for game over
-        if data.get('game_over'):
-            self.handle_game_over(data)
+        # Note: Game over is handled separately by GAME_OVER message (0x1202)
+        # not from GAME_STATE_UPDATE to ensure we receive outcome/message info
     
     def handle_invalid_move(self, data: dict):
         """
@@ -431,7 +430,15 @@ class GameWindow(QWidget):
         Receives MSG_S2C_INVALID_MOVE (0x1201)
         """
         error = data.get('error', 'Invalid move')
-        QMessageBox.warning(self, "Invalid Move", error)
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("Invalid Move")
+        msg_box.setText(error)
+        msg_box.setStyleSheet("""
+            QLabel { min-width: 300px; padding: 15px; font-size: 12px; }
+            QPushButton { min-width: 80px; min-height: 30px; }
+        """)
+        msg_box.exec()
         
         # Reset status
         board = chess.Board(self.chess_board.get_fen())
@@ -445,39 +452,80 @@ class GameWindow(QWidget):
         Handle game over
         Receives MSG_S2C_GAME_OVER (0x1202)
         """
+        print(f"🎮 Game Over - data: {data}")
+        
+        # Sử dụng outcome từ backend (you_win, you_loss, draw)
+        outcome = data.get('outcome', '')
+        message_text = data.get('message', '')
         result = data.get('result', 'unknown')
-        winner = data.get('winner', None)
         
-        # Determine message
-        if result == 'checkmate':
-            if winner == self.my_color:
-                message = "Checkmate! You won! 🎉"
-                title = "Victory"
-            else:
-                message = "Checkmate! You lost."
-                title = "Defeat"
-        elif result == 'resignation':
-            if winner == self.my_color:
-                message = "Opponent resigned. You won! 🎉"
-                title = "Victory"
-            else:
-                message = "You resigned."
-                title = "Resigned"
-        elif result == 'draw_agreement':
-            message = "Game drawn by agreement."
+        print(f"   outcome={outcome}, result={result}, message={message_text}")
+        
+        # Xác định title và message dựa trên outcome
+        if outcome == 'you_win':
+            title = "Victory"
+            message = message_text or "You won! 🎉"
+        elif outcome == 'you_loss':
+            title = "Defeat"
+            message = message_text or "You lost."
+        elif outcome == 'draw':
             title = "Draw"
-        elif result == 'stalemate':
-            message = "Stalemate! Game drawn."
-            title = "Draw"
+            message = message_text or "Game ended in a draw."
         else:
-            message = f"Game over: {result}"
-            title = "Game Over"
+            # Fallback to old logic nếu không có outcome
+            winner = data.get('winner', None)
+            if result == 'checkmate':
+                if winner == self.my_color:
+                    message = "Checkmate! You won! 🎉"
+                    title = "Victory"
+                else:
+                    message = "Checkmate! You lost."
+                    title = "Defeat"
+            elif result == 'resignation':
+                if winner == self.my_color:
+                    message = "Opponent resigned. You won! 🎉"
+                    title = "Victory"
+                else:
+                    message = "You resigned."
+                    title = "Resigned"
+            elif result == 'draw_agreement':
+                message = "Game drawn by agreement."
+                title = "Draw"
+            elif result == 'stalemate':
+                message = "Stalemate! Game drawn."
+                title = "Draw"
+            else:
+                message = f"Game over: {result}"
+                title = "Game Over"
         
-        # Show message box
+        # Show message box with larger size
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle(title)
         msg_box.setText(message)
         msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        
+        # Set larger font and size
+        font = QFont()
+        font.setPointSize(12)
+        msg_box.setFont(font)
+        msg_box.setStyleSheet("""
+            QMessageBox {
+                min-width: 400px;
+                min-height: 200px;
+            }
+            QLabel {
+                min-width: 350px;
+                min-height: 80px;
+                padding: 20px;
+                font-size: 14px;
+            }
+            QPushButton {
+                min-width: 100px;
+                min-height: 35px;
+                font-size: 12px;
+                padding: 5px 15px;
+            }
+        """)
         msg_box.exec()
         
         # Return to lobby
@@ -488,22 +536,53 @@ class GameWindow(QWidget):
         Handle offer draw button
         Sends MSG_C2S_OFFER_DRAW (0x0022)
         """
-        reply = QMessageBox.question(self, "Offer Draw",
-                                    "Do you want to offer a draw to your opponent?",
-                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Offer Draw")
+        msg_box.setText("Do you want to offer a draw to your opponent?")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setStyleSheet("""
+            QMessageBox {
+                min-width: 400px;
+            }
+            QLabel {
+                min-width: 350px;
+                padding: 15px;
+                font-size: 13px;
+            }
+            QPushButton {
+                min-width: 90px;
+                min-height: 32px;
+                font-size: 12px;
+            }
+        """)
+        reply = msg_box.exec()
         
         if reply == QMessageBox.StandardButton.Yes:
             self.network.offer_draw(self.game_id)
-            QMessageBox.information(self, "Draw Offer", "Draw offer sent to opponent.")
+            info_box = QMessageBox(self)
+            info_box.setWindowTitle("Draw Offer")
+            info_box.setText("Draw offer sent to opponent.")
+            info_box.setStyleSheet("""
+                QLabel { min-width: 300px; padding: 15px; font-size: 12px; }
+                QPushButton { min-width: 80px; min-height: 30px; }
+            """)
+            info_box.exec()
     
     def handle_draw_offer_received(self, data: dict):
         """
         Handle draw offer from opponent
         Receives MSG_S2C_DRAW_OFFER_RECEIVED (0x1203)
         """
-        reply = QMessageBox.question(self, "Draw Offer",
-                                    "Your opponent offers a draw. Do you accept?",
-                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Draw Offer")
+        msg_box.setText("Your opponent offers a draw. Do you accept?")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setStyleSheet("""
+            QMessageBox { min-width: 400px; }
+            QLabel { min-width: 350px; padding: 15px; font-size: 13px; }
+            QPushButton { min-width: 90px; min-height: 32px; font-size: 12px; }
+        """)
+        reply = msg_box.exec()
         
         if reply == QMessageBox.StandardButton.Yes:
             # Send MSG_C2S_ACCEPT_DRAW (0x0023)
@@ -517,17 +596,30 @@ class GameWindow(QWidget):
         Handle draw offer declined
         Receives MSG_S2C_DRAW_OFFER_DECLINED (0x1204)
         """
-        QMessageBox.information(self, "Draw Declined", 
-                               "Your opponent declined the draw offer.")
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Draw Declined")
+        msg_box.setText("Your opponent declined the draw offer.")
+        msg_box.setStyleSheet("""
+            QLabel { min-width: 300px; padding: 15px; font-size: 12px; }
+            QPushButton { min-width: 80px; min-height: 30px; }
+        """)
+        msg_box.exec()
     
     def on_resign(self):
         """
         Handle resign button
         Sends MSG_C2S_RESIGN (0x0021)
         """
-        reply = QMessageBox.question(self, "Resign",
-                                    "Are you sure you want to resign?",
-                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Resign")
+        msg_box.setText("Are you sure you want to resign?")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setStyleSheet("""
+            QMessageBox { min-width: 400px; }
+            QLabel { min-width: 300px; padding: 15px; font-size: 13px; }
+            QPushButton { min-width: 90px; min-height: 32px; font-size: 12px; }
+        """)
+        reply = msg_box.exec()
         
         if reply == QMessageBox.StandardButton.Yes:
             self.network.resign(self.game_id)
@@ -535,9 +627,16 @@ class GameWindow(QWidget):
     
     def confirm_quit(self):
         """Confirm quit to lobby"""
-        reply = QMessageBox.question(self, "Quit Game",
-                                    "Are you sure you want to quit? The game will continue.",
-                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Quit Game")
+        msg_box.setText("Are you sure you want to quit? The game will continue.")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setStyleSheet("""
+            QMessageBox { min-width: 400px; }
+            QLabel { min-width: 350px; padding: 15px; font-size: 13px; }
+            QPushButton { min-width: 90px; min-height: 32px; font-size: 12px; }
+        """)
+        reply = msg_box.exec()
         
         if reply == QMessageBox.StandardButton.Yes:
             self.quit_game.emit()

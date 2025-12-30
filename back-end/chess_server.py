@@ -46,9 +46,10 @@ class ChessGameServer:
     def _register_handlers(self):
         """Register all message handlers with NetworkManager"""
         
-        # Authentication handlers (0x0001, 0x0002)
+        # Authentication handlers (0x0001, 0x0002, 0x0003)
         self.network.register_handler(MessageTypeC2S.REGISTER, self.auth_handler.handle_register)
         self.network.register_handler(MessageTypeC2S.LOGIN, self.auth_handler.handle_login)
+        self.network.register_handler(MessageTypeC2S.GET_ONLINE_USERS, self.auth_handler.handle_get_online_users)
         
         # Matchmaking handlers (0x0010, 0x0011, 0x0012)
         self.network.register_handler(MessageTypeC2S.FIND_MATCH, self.matchmaking_handler.handle_find_match)
@@ -71,7 +72,8 @@ class ChessGameServer:
         print("✓ All message handlers registered:")
         print("  📝 0x0001 REGISTER - User registration")
         print("  🔐 0x0002 LOGIN - User login")
-        print("  🔍 0x0010 FIND_MATCH - Matchmaking")
+        print("  � 0x0003 GET_ONLINE_USERS - Get online users")
+        print("  �🔍 0x0010 FIND_MATCH - Matchmaking")
         print("  ❌ 0x0011 CANCEL_FIND_MATCH - Cancel matchmaking")
         print("  🤖 0x0012 FIND_AI_MATCH - AI game")
         print("  ♟️  0x0020 MAKE_MOVE - Make a move")
