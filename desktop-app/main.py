@@ -43,8 +43,8 @@ class ChessApplication(QStackedWidget):
         """Initialize application UI"""
         self.setWindowTitle("Chess Desktop App")
         
-        # Set fixed size 1280x720
-        self.setFixedSize(1280, 720)
+        # Set fixed size 1280x853
+        self.setFixedSize(1280, 853)
         
         # Create windows
         self.login_window = LoginWindow(self.network)
