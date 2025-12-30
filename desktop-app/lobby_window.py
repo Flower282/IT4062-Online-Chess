@@ -235,7 +235,27 @@ class LobbyWindow(QWidget):
                 border-radius: 4px;
                 font-size: 11px;
             }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #666;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                border: 1px solid #ccc;
+                background-color: white;
+                selection-background-color: #4CAF50;
+                selection-color: white;
+                outline: none;
+            }
         """)
+        # Connect signal to ensure popup closes after selection
+        self.difficulty_combo.activated.connect(lambda: self.difficulty_combo.hidePopup())
         difficulty_layout.addWidget(self.difficulty_combo)
         ai_layout.addLayout(difficulty_layout)
         
@@ -359,10 +379,15 @@ class LobbyWindow(QWidget):
         # Enable/disable challenge button based on selection
         self.online_users_list.itemSelectionChanged.connect(self.on_user_selection_changed)
         
-        # Load initial online users
-        self.load_demo_users()
+        # Load initial online users from server
+        self.refresh_online_users()
         
         return panel
+    
+    def refresh_online_users(self):
+        """Request online users from server"""
+        print("🔄 Requesting online users from server...")
+        self.network.get_online_users()
     
     def load_demo_users(self):
         """Load demo online users (placeholder until real data from server)"""
@@ -431,11 +456,14 @@ class LobbyWindow(QWidget):
         # TODO: Send challenge request to server
         # self.network.send_challenge(opponent_user_id)
         
-        QMessageBox.information(
-            self, 
-            "Challenge Sent", 
-            f"Challenge sent to {opponent_username} (⭐ {opponent_rating})!\n\nWaiting for response..."
-        )
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Challenge Sent")
+        msg_box.setText(f"Challenge sent to {opponent_username} (⭐ {opponent_rating})!\n\nWaiting for response...")
+        msg_box.setStyleSheet("""
+            QLabel { min-width: 350px; padding: 15px; font-size: 12px; }
+            QPushButton { min-width: 80px; min-height: 30px; }
+        """)
+        msg_box.exec()
         
         # Disable button while waiting
         self.challenge_button.setEnabled(False)
@@ -443,12 +471,16 @@ class LobbyWindow(QWidget):
     
     def on_refresh_online_users(self):
         """Refresh online users list"""
-        # TODO: Request online users from server
-        # self.network.get_online_users()
-        
-        # For now, reload demo users
-        self.load_demo_users()
-        QMessageBox.information(self, "Refreshed", "Online users list refreshed!")
+        print("🔄 Refreshing online users...")
+        self.refresh_online_users()
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Refreshed")
+        msg_box.setText("Requesting online users list...")
+        msg_box.setStyleSheet("""
+            QLabel { min-width: 250px; padding: 15px; font-size: 12px; }
+            QPushButton { min-width: 80px; min-height: 30px; }
+        """)
+        msg_box.exec()
     
     def create_stats_panel(self):
         """Create user stats panel"""
@@ -555,6 +587,8 @@ class LobbyWindow(QWidget):
             self.handle_game_start(data)
         elif message_id == MessageTypeS2C.STATS_RESPONSE:
             self.handle_stats_response(data)
+        elif message_id == MessageTypeS2C.ONLINE_USERS_LIST:
+            self.handle_online_users_list(data)
     
     def on_find_match(self):
         """
@@ -649,4 +683,21 @@ class LobbyWindow(QWidget):
         # Refresh stats display
         # TODO: Update stat labels dynamically
         
-        QMessageBox.information(self, "Stats Updated", "Your statistics have been refreshed!")
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Stats Updated")
+        msg_box.setText("Your statistics have been refreshed!")
+        msg_box.setStyleSheet("""
+            QLabel { min-width: 300px; padding: 15px; font-size: 12px; }
+            QPushButton { min-width: 80px; min-height: 30px; }
+        """)
+        msg_box.exec()
+    
+    def handle_online_users_list(self, data: dict):
+        """
+        Handle online users list response
+        Receives MSG_S2C_ONLINE_USERS_LIST (0x1004)
+        """
+        if data.get('success'):
+            users = data.get('users', [])
+            print(f"📝 Received {len(users)} online users")
+            self.update_online_users(users)

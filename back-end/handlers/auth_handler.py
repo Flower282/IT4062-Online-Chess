@@ -77,3 +77,45 @@ class AuthHandler:
                 'success': False,
                 'message': result['message']
             })
+    
+    def handle_get_online_users(self, client_fd: int, data: dict):
+        """
+        0x0003 - GET_ONLINE_USERS: Lấy danh sách người chơi online
+        """
+        print(f"👥 Get online users request from fd={client_fd}")
+        
+        # Get current user info
+        current_session = self.network.get_client_info(client_fd)
+        current_username = current_session.get('username') if current_session else None
+        
+        # Build online users list
+        online_users = []
+        for fd, session in self.network.client_sessions.items():
+            # Skip unauthenticated clients
+            if not session.get('authenticated'):
+                continue
+            
+            # Skip current user
+            username = session.get('username')
+            if username == current_username:
+                continue
+            
+            # Check if user is in game
+            game_id = session.get('game_id')
+            status = 'in_game' if game_id else 'available'
+            
+            # Add to list
+            online_users.append({
+                'username': username,
+                'fullname': session.get('fullname', username),
+                'rating': session.get('rating', 1200),
+                'status': status
+            })
+        
+        # Send response (0x1004 - ONLINE_USERS_LIST)
+        self.network.send_to_client(client_fd, self.MessageTypeS2C.ONLINE_USERS_LIST, {
+            'success': True,
+            'users': online_users
+        })
+        
+        print(f"📝 Sent {len(online_users)} online users to fd={client_fd}")

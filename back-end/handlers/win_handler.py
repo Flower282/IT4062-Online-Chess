@@ -56,6 +56,8 @@ class WinHandler:
         if not player_fd or player_fd == -1:
             return
         
+        print(f"🎮 AI Game Result - game_id: {game_id}, result: {result}, player_color: {player_color}, reason: {reason}")
+        
         # Xác định người chơi thắng hay thua
         if result == 'draw':
             outcome = 'draw'
@@ -67,6 +69,8 @@ class WinHandler:
         else:
             outcome = 'you_loss'
             message = f'You Lost! {reason}'
+        
+        print(f"   → Outcome: {outcome}, Message: {message}")
         
         self.network.send_to_client(player_fd, self.MessageTypeS2C.GAME_OVER, {
             'game_id': game_id,

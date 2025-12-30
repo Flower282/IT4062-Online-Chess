@@ -4,7 +4,8 @@ Renders and handles chess board interaction
 Replaces the chess board display logic from React
 """
 
-from PyQt6.QtWidgets import QWidget, QGridLayout, QPushButton, QLabel, QSizePolicy
+from PyQt6.QtWidgets import (QWidget, QGridLayout, QPushButton, QLabel, 
+                            QSizePolicy, QDialog, QVBoxLayout, QHBoxLayout)
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QColor, QPalette
 import chess
@@ -17,7 +18,7 @@ class ChessBoardWidget(QWidget):
     """
     
     # Signal emitted when user makes a move
-    move_made = pyqtSignal(str, str)  # from_square, to_square
+    move_made = pyqtSignal(str, str, str)  # from_square, to_square, promotion (optional, '' if none)
     
     def __init__(self, orientation='white', parent=None):
         super().__init__(parent)
@@ -76,11 +77,16 @@ class ChessBoardWidget(QWidget):
         else:
             color = "#b58863"  # Dark square
         
+        # Set font using QFont to avoid stylesheet issues
+        font = QFont()
+        font.setPointSize(36)
+        button.setFont(font)
+        
+        # Simplified stylesheet without font-size
         button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {color};
                 border: none;
-                font-size: 36px;
             }}
             QPushButton:hover {{
                 border: 2px solid #333;
@@ -136,24 +142,59 @@ class ChessBoardWidget(QWidget):
             from_square = self.selected_square
             to_square = square
             
-            # Check if move is legal
-            move = chess.Move(chess.parse_square(from_square), 
-                            chess.parse_square(to_square))
+            from_square_idx = chess.parse_square(from_square)
+            to_square_idx = chess.parse_square(to_square)
+            from_piece = self.board.piece_at(from_square_idx)
             
-            # Check for promotion
-            if move in self.board.legal_moves:
-                # Check if pawn promotion
-                from_piece = self.board.piece_at(chess.parse_square(from_square))
-                if from_piece and from_piece.piece_type == chess.PAWN:
-                    to_rank = chess.square_rank(chess.parse_square(to_square))
-                    if (from_piece.color == chess.WHITE and to_rank == 7) or \
-                       (from_piece.color == chess.BLACK and to_rank == 0):
-                        # For now, always promote to queen
-                        # TODO: Add promotion dialog
-                        move = chess.Move(move.from_square, move.to_square, chess.QUEEN)
-                
-                # Emit move signal
-                self.move_made.emit(from_square, to_square)
+            promotion_piece = ''
+            move = None
+            
+            # Check if pawn promotion is needed
+            if from_piece and from_piece.piece_type == chess.PAWN:
+                to_rank = chess.square_rank(to_square_idx)
+                if (from_piece.color == chess.WHITE and to_rank == 7) or \
+                   (from_piece.color == chess.BLACK and to_rank == 0):
+                    print(f"👑 Pawn promotion detected: {from_square} -> {to_square}")
+                    print(f"   From piece: {from_piece}, color: {from_piece.color}, to_rank: {to_rank}")
+                    # Show promotion dialog
+                    promotion_piece = self.show_promotion_dialog(from_piece.color)
+                    print(f"   Chosen piece: '{promotion_piece}'")
+                    if not promotion_piece:  # User cancelled
+                        print(f"   ✗ User cancelled promotion")
+                        self.selected_square = None
+                        self.legal_moves = []
+                        self.update_board()
+                        return
+                    
+                    # Create move with promotion
+                    # Map 'q' -> QUEEN, 'r' -> ROOK, 'b' -> BISHOP, 'n' -> KNIGHT
+                    promotion_map = {
+                        'q': chess.QUEEN,
+                        'r': chess.ROOK,
+                        'b': chess.BISHOP,
+                        'n': chess.KNIGHT
+                    }
+                    promotion_type = promotion_map.get(promotion_piece.lower(), chess.QUEEN)
+                    print(f"   Creating promotion move with piece type: {promotion_type}")
+                    move = chess.Move(from_square_idx, to_square_idx, promotion=promotion_type)
+                else:
+                    # Pawn move but not to promotion rank
+                    move = chess.Move(from_square_idx, to_square_idx)
+            else:
+                # Normal move without promotion (not a pawn or different piece)
+                move = chess.Move(from_square_idx, to_square_idx)
+            
+            # Check if move is legal
+            if move and move in self.board.legal_moves:
+                print(f"✓ Move is legal: {move.uci()}")
+                # Emit move signal with promotion piece
+                self.move_made.emit(from_square, to_square, promotion_piece)
+            else:
+                if move:
+                    print(f"✗ Move not legal: {move.uci()}")
+                else:
+                    print(f"✗ No move created")
+                print(f"   Legal moves from {from_square}: {[m.uci() for m in self.legal_moves]}")
             
             # Clear selection
             self.selected_square = None
@@ -180,3 +221,79 @@ class ChessBoardWidget(QWidget):
             self.grid.itemAt(i).widget().setParent(None)
         
         self.init_ui()
+    
+    def show_promotion_dialog(self, color):
+        """Show dialog to select promotion piece"""
+        print(f"   Opening promotion dialog for color: {color}")
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Pawn Promotion")
+        dialog.setModal(True)
+        dialog.setMinimumWidth(500)
+        dialog.setMinimumHeight(250)
+        
+        layout = QVBoxLayout()
+        layout.setSpacing(20)
+        layout.setContentsMargins(30, 30, 30, 30)
+        
+        # Title
+        title = QLabel("Choose piece to promote to:")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_font = QFont()
+        title_font.setPointSize(14)
+        title_font.setBold(True)
+        title.setFont(title_font)
+        # No stylesheet for title to avoid potential issues
+        layout.addWidget(title)
+        
+        # Buttons layout
+        buttons_layout = QHBoxLayout()
+        
+        # Promotion options
+        pieces = [
+            ('Queen', '♕' if color == chess.WHITE else '♛', 'q'),
+            ('Rook', '♖' if color == chess.WHITE else '♜', 'r'),
+            ('Bishop', '♗' if color == chess.WHITE else '♝', 'b'),
+            ('Knight', '♘' if color == chess.WHITE else '♞', 'n')
+        ]
+        
+        selected_piece = ['q']  # Default to queen
+        
+        for name, symbol, piece_code in pieces:
+            btn = QPushButton(symbol)
+            btn.setFixedSize(100, 100)
+            btn.setToolTip(name)  # Thêm tooltip
+            
+            # Set font using QFont to avoid stylesheet issues
+            btn_font = QFont()
+            btn_font.setPointSize(42)
+            btn.setFont(btn_font)
+            
+            # Use QPalette instead of stylesheet to avoid "Unknown property" issues
+            palette = btn.palette()
+            palette.setColor(QPalette.ColorRole.Button, QColor("#4CAF50"))
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor("white"))
+            btn.setPalette(palette)
+            btn.setAutoFillBackground(True)
+            
+            # Minimal stylesheet for border only
+            btn.setStyleSheet("QPushButton { border: 2px solid #388E3C; }")
+            btn.clicked.connect(lambda checked, p=piece_code: (
+                selected_piece.__setitem__(0, p),
+                dialog.accept()
+            ))
+            buttons_layout.addWidget(btn)
+        
+        layout.addLayout(buttons_layout)
+        dialog.setLayout(layout)
+        
+        print("   Showing promotion dialog...")
+        # Show dialog
+        result = dialog.exec()
+        
+        if result == QDialog.DialogCode.Accepted:
+            print(f"   Dialog accepted, selected piece: {selected_piece[0]}")
+            return selected_piece[0]
+        
+        print("   Dialog cancelled, defaulting to queen")
+        return 'q'  # Default to queen if dialog closed

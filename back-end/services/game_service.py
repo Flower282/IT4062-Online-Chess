@@ -324,7 +324,7 @@ def validate_move(game_id, move):
     
     Args:
         game_id (str): ID của game
-        move (str): Nước đi (UCI format)
+        move (str): Nước đi (UCI format, ví dụ: e2e4, e7e8q cho promotion)
         
     Returns:
         dict: {'valid': bool, 'fen': str, 'game_over': bool, 'result': str}
@@ -337,9 +337,13 @@ def validate_move(game_id, move):
         board = chess.Board(game['fen'])
         
         try:
+            # Parse UCI move (handles promotion automatically if present)
             chess_move = chess.Move.from_uci(move)
+            print(f"🔍 Validating move: {move} (from_uci: {chess_move})")
+            
             if chess_move in board.legal_moves:
                 board.push(chess_move)
+                print(f"   ✓ Move valid, new FEN: {board.fen()}")
                 
                 # Kiểm tra game over
                 game_over = board.is_game_over()
@@ -347,9 +351,14 @@ def validate_move(game_id, move):
                 
                 if game_over:
                     if board.is_checkmate():
+                        # board.turn là lượt của người bị checkmate (không thể đi)
+                        # Nếu board.turn == WHITE → trắng bị checkmate → đen thắng
+                        # Nếu board.turn == BLACK → đen bị checkmate → trắng thắng
                         result = 'black_win' if board.turn == chess.WHITE else 'white_win'
+                        print(f"   ♔ Checkmate! board.turn={board.turn}, result={result}")
                     elif board.is_stalemate() or board.is_insufficient_material():
                         result = 'draw'
+                        print(f"   ⚖ Draw: stalemate={board.is_stalemate()}, insufficient={board.is_insufficient_material()}")
                 
                 return {
                     'valid': True,
@@ -359,10 +368,13 @@ def validate_move(game_id, move):
                     'in_check': board.is_check()
                 }
             else:
+                print(f"   ✗ Move not in legal moves")
+                print(f"   Legal moves: {[m.uci() for m in board.legal_moves]}")
                 return {'valid': False, 'reason': 'Illegal move'}
         
-        except ValueError:
-            return {'valid': False, 'reason': 'Invalid move format'}
+        except ValueError as e:
+            print(f"   ✗ ValueError parsing move: {e}")
+            return {'valid': False, 'reason': f'Invalid move format: {str(e)}'}
     
     except Exception as e:
         print(f"Error validating move: {e}")
