@@ -54,27 +54,33 @@ class GameWindow(QWidget):
     
     def init_ui(self):
         """Initialize game UI"""
-        self.setWindowTitle("Chess Game")
-        self.setMinimumSize(900, 700)
+        self.setWindowTitle("♟️ Chess Game")
+        self.setFixedSize(1280, 853)
         
         # Main horizontal layout
         main_layout = QHBoxLayout()
-        main_layout.setSpacing(20)
+        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(15, 15, 15, 15)
         
-        # Left side - Move history and info
+        # Left side - Move history and info (25%)
         left_panel = self.create_left_panel()
-        main_layout.addWidget(left_panel, 1)
+        main_layout.addWidget(left_panel, 25)
         
-        # Center - Chess board
+        # Center - Chess board (50%)
         board_container = self.create_board_container()
-        main_layout.addWidget(board_container, 2)
+        main_layout.addWidget(board_container, 50)
         
-        # Right side - Controls
+        # Right side - Controls (25%)
         right_panel = self.create_right_panel()
-        main_layout.addWidget(right_panel, 1)
+        main_layout.addWidget(right_panel, 25)
         
         self.setLayout(main_layout)
-        self.setStyleSheet("QWidget { background-color: #f5f5f5; }")
+        self.setStyleSheet("""
+            QWidget { 
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #e3f2fd, stop:1 #f5f5f5);
+            }
+        """)
     
     def create_left_panel(self):
         """Create left panel with move history"""
@@ -83,33 +89,49 @@ class GameWindow(QWidget):
         panel.setStyleSheet("""
             QFrame {
                 background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                padding: 15px;
+                border: 2px solid #e0e0e0;
+                border-radius: 12px;
+                padding: 12px;
             }
         """)
         
         layout = QVBoxLayout(panel)
+        layout.setSpacing(10)
         
         # Title
-        title = QLabel("Move History")
-        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title = QLabel("📜 Move History")
+        title.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("color: #1976d2; padding: 5px;")
         layout.addWidget(title)
         
         # Opponent info
         opponent_frame = QFrame()
-        opponent_frame.setStyleSheet("background-color: #333; border-radius: 4px; padding: 10px;")
+        opponent_frame.setStyleSheet("""
+            background-color: #424242; 
+            border-radius: 8px; 
+            padding: 12px;
+            border: 2px solid #616161;
+        """)
         opponent_layout = QVBoxLayout(opponent_frame)
+        opponent_layout.setSpacing(5)
+        
+        opponent_icon = QLabel("⚔️ Opponent")
+        opponent_icon.setFont(QFont("Arial", 9))
+        opponent_icon.setStyleSheet("color: #bdbdbd;")
+        opponent_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        opponent_layout.addWidget(opponent_icon)
         
         self.opponent_label = QLabel(self.opponent_name)
-        self.opponent_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.opponent_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         self.opponent_label.setStyleSheet("color: white;")
         self.opponent_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         opponent_layout.addWidget(self.opponent_label)
         
-        self.opponent_color_label = QLabel(f"Playing as: {'Black' if self.my_color == 'white' else 'White'}")
-        self.opponent_color_label.setStyleSheet("color: #aaa;")
+        opponent_color = 'Black ⚫' if self.my_color == 'white' else 'White ⚪'
+        self.opponent_color_label = QLabel(opponent_color)
+        self.opponent_color_label.setFont(QFont("Arial", 10))
+        self.opponent_color_label.setStyleSheet("color: #90caf9;")
         self.opponent_color_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         opponent_layout.addWidget(self.opponent_color_label)
         
@@ -121,25 +143,41 @@ class GameWindow(QWidget):
         self.move_history.setStyleSheet("""
             QTextEdit {
                 background-color: #fafafa;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 8px;
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 10px;
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
             }
         """)
-        layout.addWidget(self.move_history)
+        layout.addWidget(self.move_history, 1)
         
         # Player info (you)
         player_frame = QFrame()
-        player_frame.setStyleSheet("background-color: #2196f3; border-radius: 4px; padding: 10px;")
+        player_frame.setStyleSheet("""
+            background-color: #1976d2; 
+            border-radius: 8px; 
+            padding: 12px;
+            border: 2px solid #1565c0;
+        """)
         player_layout = QVBoxLayout(player_frame)
+        player_layout.setSpacing(5)
+        
+        player_icon = QLabel("👤 You")
+        player_icon.setFont(QFont("Arial", 9))
+        player_icon.setStyleSheet("color: #bbdefb;")
+        player_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        player_layout.addWidget(player_icon)
         
         self.player_label = QLabel(self.user_data.get('username', 'You'))
-        self.player_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.player_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         self.player_label.setStyleSheet("color: white;")
         self.player_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         player_layout.addWidget(self.player_label)
         
-        self.player_color_label = QLabel(f"Playing as: {self.my_color.capitalize()}")
+        player_color = f"{self.my_color.capitalize()} {'⚪' if self.my_color == 'white' else '⚫'}"
+        self.player_color_label = QLabel(player_color)
+        self.player_color_label.setFont(QFont("Arial", 10))
         self.player_color_label.setStyleSheet("color: #e3f2fd;")
         self.player_color_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         player_layout.addWidget(self.player_color_label)
@@ -155,20 +193,27 @@ class GameWindow(QWidget):
         container.setStyleSheet("""
             QFrame {
                 background-color: white;
-                border: 2px solid #333;
-                border-radius: 8px;
-                padding: 20px;
+                border: 3px solid #424242;
+                border-radius: 12px;
+                padding: 15px;
             }
         """)
         
         layout = QVBoxLayout(container)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(10)
         
         # Game status label
-        self.status_label = QLabel("Your turn" if self.my_color == 'white' else "Opponent's turn")
-        self.status_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        initial_status = "Your turn ♟️" if self.my_color == 'white' else "Opponent's turn ⏳"
+        self.status_label = QLabel(initial_status)
+        self.status_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("color: #2196f3; padding: 10px;")
+        self.status_label.setStyleSheet("""
+            color: #1976d2; 
+            padding: 12px; 
+            background-color: #e3f2fd;
+            border-radius: 8px;
+        """)
         layout.addWidget(self.status_label)
         
         # Chess board widget
@@ -190,54 +235,62 @@ class GameWindow(QWidget):
         panel.setStyleSheet("""
             QFrame {
                 background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                padding: 15px;
+                border: 2px solid #e0e0e0;
+                border-radius: 12px;
+                padding: 12px;
             }
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setSpacing(15)
+        layout.setSpacing(12)
         
         # Title
-        title = QLabel("Game Controls")
-        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title = QLabel("⚙️ Game Controls")
+        title.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("color: #1976d2; padding: 5px;")
         layout.addWidget(title)
         
         # Offer Draw button - sends MSG_C2S_OFFER_DRAW (0x0022)
         self.draw_button = QPushButton("🤝 Offer Draw")
-        self.draw_button.setMinimumHeight(40)
-        self.draw_button.setFont(QFont("Arial", 11))
+        self.draw_button.setMinimumHeight(45)
+        self.draw_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         self.draw_button.setStyleSheet("""
             QPushButton {
                 background-color: #ff9800;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                padding: 10px;
+                border-radius: 8px;
+                padding: 12px;
             }
             QPushButton:hover {
                 background-color: #f57c00;
+                transform: scale(1.05);
+            }
+            QPushButton:pressed {
+                background-color: #e65100;
             }
         """)
         self.draw_button.clicked.connect(self.on_offer_draw)
         layout.addWidget(self.draw_button)
         
         # Resign button - sends MSG_C2S_RESIGN (0x0021)
-        self.resign_button = QPushButton("🏳 Resign")
-        self.resign_button.setMinimumHeight(40)
-        self.resign_button.setFont(QFont("Arial", 11))
+        self.resign_button = QPushButton("🏳️ Resign")
+        self.resign_button.setMinimumHeight(45)
+        self.resign_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         self.resign_button.setStyleSheet("""
             QPushButton {
                 background-color: #f44336;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                padding: 10px;
+                border-radius: 8px;
+                padding: 12px;
             }
             QPushButton:hover {
                 background-color: #d32f2f;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
             }
         """)
         self.resign_button.clicked.connect(self.on_resign)
@@ -245,12 +298,23 @@ class GameWindow(QWidget):
         
         # Game info
         info_frame = QFrame()
-        info_frame.setStyleSheet("background-color: #f5f5f5; border-radius: 4px; padding: 10px;")
+        info_frame.setStyleSheet("""
+            background-color: #f5f5f5; 
+            border: 1px solid #e0e0e0;
+            border-radius: 8px; 
+            padding: 12px;
+        """)
         info_layout = QVBoxLayout(info_frame)
+        info_layout.setSpacing(8)
         
-        game_id_label = QLabel(f"Game ID: {self.game_data.get('game_id', 'N/A')}")
-        game_id_label.setFont(QFont("Arial", 9))
-        game_id_label.setStyleSheet("color: #666;")
+        info_title = QLabel("ℹ️ Game Info")
+        info_title.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        info_title.setStyleSheet("color: #424242;")
+        info_layout.addWidget(info_title)
+        
+        game_id_label = QLabel(f"ID: {self.game_data.get('game_id', 'N/A')}")
+        game_id_label.setFont(QFont("Courier New", 9))
+        game_id_label.setStyleSheet("color: #757575;")
         info_layout.addWidget(game_id_label)
         
         layout.addWidget(info_frame)
@@ -258,19 +322,22 @@ class GameWindow(QWidget):
         layout.addStretch()
         
         # Quit button
-        self.quit_button = QPushButton("⬅ Back to Lobby")
-        self.quit_button.setMinimumHeight(40)
-        self.quit_button.setFont(QFont("Arial", 11))
+        self.quit_button = QPushButton("⬅️ Back to Lobby")
+        self.quit_button.setMinimumHeight(45)
+        self.quit_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         self.quit_button.setStyleSheet("""
             QPushButton {
-                background-color: #9e9e9e;
+                background-color: #757575;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                padding: 10px;
+                border-radius: 8px;
+                padding: 12px;
             }
             QPushButton:hover {
-                background-color: #757575;
+                background-color: #616161;
+            }
+            QPushButton:pressed {
+                background-color: #424242;
             }
         """)
         self.quit_button.clicked.connect(self.confirm_quit)
@@ -325,15 +392,34 @@ class GameWindow(QWidget):
         # Update status
         board = chess.Board(fen)
         if board.turn == (chess.WHITE if self.my_color == 'white' else chess.BLACK):
-            self.status_label.setText("Your turn")
-            self.status_label.setStyleSheet("color: #4caf50; padding: 10px; font-weight: bold;")
+            self.status_label.setText("Your turn ♟️")
+            self.status_label.setStyleSheet("""
+                color: white; 
+                padding: 12px; 
+                font-weight: bold;
+                background-color: #4caf50;
+                border-radius: 8px;
+            """)
         else:
-            self.status_label.setText("Opponent's turn")
-            self.status_label.setStyleSheet("color: #ff9800; padding: 10px; font-weight: bold;")
+            self.status_label.setText("Opponent's turn ⏳")
+            self.status_label.setStyleSheet("""
+                color: white; 
+                padding: 12px; 
+                font-weight: bold;
+                background-color: #ff9800;
+                border-radius: 8px;
+            """)
         
         # Check for check
         if data.get('is_check'):
-            self.status_label.setText(self.status_label.text() + " - CHECK!")
+            self.status_label.setText(self.status_label.text() + " ⚠️ CHECK!")
+            self.status_label.setStyleSheet("""
+                color: white; 
+                padding: 12px; 
+                font-weight: bold;
+                background-color: #f44336;
+                border-radius: 8px;
+            """)
         
         # Check for game over
         if data.get('game_over'):
