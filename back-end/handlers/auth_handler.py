@@ -57,7 +57,9 @@ class AuthHandler:
                 client_fd,
                 authenticated=True,
                 username=user['username'],
-                user_id=user['_id']
+                user_id=user['_id'],
+                fullname=user['fullname'],
+                rating=user['elo']
             )
             
             # Send login result (0x1002 - LOGIN_RESULT)

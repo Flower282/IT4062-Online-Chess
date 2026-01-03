@@ -7,8 +7,9 @@ Replaces the chess board display logic from React
 from PyQt6.QtWidgets import (QWidget, QGridLayout, QPushButton, QLabel, 
                             QSizePolicy, QDialog, QVBoxLayout, QHBoxLayout)
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtGui import QFont, QColor, QPalette
+from PyQt6.QtGui import QFont, QColor, QPalette, QPixmap, QIcon
 import chess
+import os
 
 
 class ChessBoardWidget(QWidget):
@@ -20,12 +21,14 @@ class ChessBoardWidget(QWidget):
     # Signal emitted when user makes a move
     move_made = pyqtSignal(str, str, str)  # from_square, to_square, promotion (optional, '' if none)
     
-    def __init__(self, orientation='white', parent=None):
+    def __init__(self, orientation='white', piece_style='neo', parent=None):
         super().__init__(parent)
         self.board = chess.Board()
         self.orientation = orientation  # 'white' or 'black'
         self.selected_square = None
         self.legal_moves = []
+        self.piece_style = piece_style  # Style of pieces (neo, classic, etc.)
+        self.use_images = True  # Use images instead of Unicode
         self.init_ui()
     
     def init_ui(self):
@@ -100,10 +103,15 @@ class ChessBoardWidget(QWidget):
             piece = self.board.piece_at(square_idx)
             
             if piece:
-                # Unicode chess pieces
-                piece_symbol = self.get_piece_unicode(piece)
-                button.setText(piece_symbol)
+                if self.use_images:
+                    # Use PNG images
+                    self.set_piece_image(button, piece)
+                else:
+                    # Unicode chess pieces
+                    piece_symbol = self.get_piece_unicode(piece)
+                    button.setText(piece_symbol)
             else:
+                button.setIcon(QIcon())  # Clear icon
                 button.setText("")
             
             # Update square colors
@@ -124,6 +132,41 @@ class ChessBoardWidget(QWidget):
             'p': '♟', 'n': '♞', 'b': '♝', 'r': '♜', 'q': '♛', 'k': '♚'
         }
         return symbols.get(piece.symbol(), '')
+    
+    def set_piece_image(self, button, piece):
+        """Set piece image on button"""
+        # Map piece to file name
+        color_prefix = 'w' if piece.color == chess.WHITE else 'b'
+        piece_type = piece.symbol().lower()
+        filename = f"{color_prefix}{piece_type}.png"
+        
+        # Get the directory of this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        image_path = os.path.join(current_dir, 'pieces', self.piece_style, filename)
+        
+        if os.path.exists(image_path):
+            pixmap = QPixmap(image_path)
+            scaled_pixmap = pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio, 
+                                         Qt.TransformationMode.SmoothTransformation)
+            button.setIcon(QIcon(scaled_pixmap))
+            button.setIconSize(QSize(50, 50))
+            button.setText("")  # Clear text when using icon
+        else:
+            # Fallback to Unicode if image not found
+            button.setIcon(QIcon())
+            button.setText(self.get_piece_unicode(piece))
+    
+    def set_piece_style(self, style):
+        """Change piece style (neo, classic, light, etc.)"""
+        available_styles = ['neo', 'classic', 'light', 'tournament', 'newspaper', 'ocean', '8bit']
+        if style in available_styles:
+            self.piece_style = style
+            self.update_board()
+    
+    def toggle_display_mode(self):
+        """Toggle between images and Unicode"""
+        self.use_images = not self.use_images
+        self.update_board()
     
     def on_square_clicked(self, square):
         """Handle square click"""
@@ -260,14 +303,33 @@ class ChessBoardWidget(QWidget):
         selected_piece = ['q']  # Default to queen
         
         for name, symbol, piece_code in pieces:
-            btn = QPushButton(symbol)
+            btn = QPushButton()
             btn.setFixedSize(100, 100)
             btn.setToolTip(name)  # Thêm tooltip
             
-            # Set font using QFont to avoid stylesheet issues
-            btn_font = QFont()
-            btn_font.setPointSize(42)
-            btn.setFont(btn_font)
+            # Set piece image or Unicode
+            if self.use_images:
+                color_prefix = 'w' if color == chess.WHITE else 'b'
+                filename = f"{color_prefix}{piece_code}.png"
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                image_path = os.path.join(current_dir, 'pieces', self.piece_style, filename)
+                
+                if os.path.exists(image_path):
+                    pixmap = QPixmap(image_path)
+                    scaled_pixmap = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio, 
+                                                 Qt.TransformationMode.SmoothTransformation)
+                    btn.setIcon(QIcon(scaled_pixmap))
+                    btn.setIconSize(QSize(80, 80))
+                else:
+                    btn.setText(symbol)
+                    btn_font = QFont()
+                    btn_font.setPointSize(42)
+                    btn.setFont(btn_font)
+            else:
+                btn.setText(symbol)
+                btn_font = QFont()
+                btn_font.setPointSize(42)
+                btn.setFont(btn_font)
             
             # Use QPalette instead of stylesheet to avoid "Unknown property" issues
             palette = btn.palette()

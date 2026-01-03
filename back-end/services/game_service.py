@@ -241,13 +241,36 @@ def get_user_game_history(user_id, limit=10):
         
         result = []
         for game_doc in games:
+            # Determine if user won, lost or drew
+            game_result = game_doc['result']
+            user_is_white = game_doc['white_player_id'] == user_id
+            
+            # Convert result to user perspective
+            if game_result == 'white_win':
+                user_result = 'win' if user_is_white else 'loss'
+            elif game_result == 'black_win':
+                user_result = 'win' if not user_is_white else 'loss'
+            elif game_result == 'draw':
+                user_result = 'draw'
+            else:
+                user_result = 'in_progress'
+            
+            # Convert created_at datetime to string
+            created_at = game_doc.get('created_at', game_doc.get('end_time'))
+            created_at_str = created_at.strftime('%Y-%m-%d %H:%M:%S') if created_at else 'N/A'
+            
             result.append({
                 'game_id': game_doc['game_id'],
-                'opponent': game_doc['black_username'] if game_doc['white_player_id'] == user_id else game_doc['white_username'],
-                'result': game_doc['result'],
+                'opponent': game_doc['black_username'] if user_is_white else game_doc['white_username'],
+                'result': game_result,  # Original result
+                'user_result': user_result,  # User's perspective
+                'my_color': 'white' if user_is_white else 'black',
                 'date': game_doc['end_time'].strftime('%Y-%m-%d %H:%M') if game_doc.get('end_time') else 'N/A',
+                'created_at': created_at_str,
                 'moves_count': len(game_doc['moves']),
-                'is_ai_game': game_doc.get('is_ai_game', False)
+                'is_ai_game': game_doc.get('is_ai_game', False),
+                'white_username': game_doc['white_username'],
+                'black_username': game_doc['black_username']
             })
         
         return result

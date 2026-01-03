@@ -46,7 +46,7 @@ class LoginWindow(QWidget):
         main_layout.setSpacing(20)
         
         # Header - equivalent to React Header component
-        header = QLabel("♔ Chess Game ♔")
+        header = QLabel("Chess Game")
         header.setFont(QFont("Arial", 24, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(header)
