@@ -6,7 +6,7 @@ Replaces React ChessBoard.jsx component
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QTextEdit, QFrame, QMessageBox,
-                            QDialog, QDialogButtonBox)
+                            QDialog, QDialogButtonBox, QComboBox)
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 from chess_board_widget import ChessBoardWidget
@@ -47,14 +47,25 @@ class GameWindow(QWidget):
         
         # Determine player color
         self.my_color = game_data.get('color', 'white')
-        self.opponent_name = game_data.get('opponent', 'Unknown')
+        
+        # Get opponent name - handle both AI and human opponents
+        opponent_username = game_data.get('opponent_username', 'Unknown')
+        opponent_id = game_data.get('opponent_id', 0)
+        
+        # Check if playing against AI
+        if opponent_id == -1 or 'AI Bot' in opponent_username:
+            # AI opponent - name already formatted as "AI Bot (Difficulty)"
+            self.opponent_name = opponent_username
+        else:
+            # Human opponent
+            self.opponent_name = opponent_username
         
         self.init_ui()
         self.setup_network_handlers()
     
     def init_ui(self):
         """Initialize game UI"""
-        self.setWindowTitle("♟️ Chess Game")
+        self.setWindowTitle("Chess Game")
         self.setFixedSize(1280, 853)
         
         # Main horizontal layout
@@ -99,7 +110,7 @@ class GameWindow(QWidget):
         layout.setSpacing(10)
         
         # Title
-        title = QLabel("📜 Move History")
+        title = QLabel("Move History")
         title.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("color: #1976d2; padding: 5px;")
@@ -116,7 +127,7 @@ class GameWindow(QWidget):
         opponent_layout = QVBoxLayout(opponent_frame)
         opponent_layout.setSpacing(5)
         
-        opponent_icon = QLabel("⚔️ Opponent")
+        opponent_icon = QLabel("Opponent")
         opponent_icon.setFont(QFont("Arial", 9))
         opponent_icon.setStyleSheet("color: #bdbdbd;")
         opponent_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -128,7 +139,7 @@ class GameWindow(QWidget):
         self.opponent_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         opponent_layout.addWidget(self.opponent_label)
         
-        opponent_color = 'Black ⚫' if self.my_color == 'white' else 'White ⚪'
+        opponent_color = 'Black' if self.my_color == 'white' else 'White'
         self.opponent_color_label = QLabel(opponent_color)
         self.opponent_color_label.setFont(QFont("Arial", 10))
         self.opponent_color_label.setStyleSheet("color: #90caf9;")
@@ -163,7 +174,7 @@ class GameWindow(QWidget):
         player_layout = QVBoxLayout(player_frame)
         player_layout.setSpacing(5)
         
-        player_icon = QLabel("👤 You")
+        player_icon = QLabel("You")
         player_icon.setFont(QFont("Arial", 9))
         player_icon.setStyleSheet("color: #bbdefb;")
         player_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -175,7 +186,7 @@ class GameWindow(QWidget):
         self.player_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         player_layout.addWidget(self.player_label)
         
-        player_color = f"{self.my_color.capitalize()} {'⚪' if self.my_color == 'white' else '⚫'}"
+        player_color = f"{self.my_color.capitalize()}"
         self.player_color_label = QLabel(player_color)
         self.player_color_label.setFont(QFont("Arial", 10))
         self.player_color_label.setStyleSheet("color: #e3f2fd;")
@@ -204,7 +215,7 @@ class GameWindow(QWidget):
         layout.setSpacing(10)
         
         # Game status label
-        initial_status = "Your turn ♟️" if self.my_color == 'white' else "Opponent's turn ⏳"
+        initial_status = "Your turn" if self.my_color == 'white' else "Opponent's turn"
         self.status_label = QLabel(initial_status)
         self.status_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -217,7 +228,7 @@ class GameWindow(QWidget):
         layout.addWidget(self.status_label)
         
         # Chess board widget
-        self.chess_board = ChessBoardWidget(orientation=self.my_color)
+        self.chess_board = ChessBoardWidget(orientation=self.my_color, piece_style='neo')
         self.chess_board.move_made.connect(self.on_move_made)
         
         # Set initial position from game data
@@ -245,14 +256,90 @@ class GameWindow(QWidget):
         layout.setSpacing(12)
         
         # Title
-        title = QLabel("⚙️ Game Controls")
+        title = QLabel("Game Controls")
         title.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("color: #1976d2; padding: 5px;")
         layout.addWidget(title)
         
+        # Piece style selector
+        style_frame = QFrame()
+        style_frame.setStyleSheet("""
+            background-color: #f5f5f5; 
+            border: 1px solid #e0e0e0;
+            border-radius: 8px; 
+            padding: 10px;
+        """)
+        style_layout = QVBoxLayout(style_frame)
+        style_layout.setSpacing(8)
+        
+        style_label = QLabel("Kiểu quân cờ:")
+        style_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        style_label.setStyleSheet("color: #424242;")
+        style_layout.addWidget(style_label)
+        
+        self.piece_style_combo = QComboBox()
+        self.piece_style_combo.addItems([
+            'neo', 'classic', 'light', 'tournament', 
+            'newspaper', 'ocean', '8bit'
+        ])
+        self.piece_style_combo.setCurrentText('neo')
+        self.piece_style_combo.setFont(QFont("Arial", 10))
+        self.piece_style_combo.setMaxVisibleItems(7)  # Limit visible items to prevent large dropdown
+        self.piece_style_combo.view().setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.piece_style_combo.setStyleSheet("""
+            QComboBox {
+                background-color: white;
+                border: 2px solid #2196f3;
+                border-radius: 6px;
+                padding: 8px;
+                color: #424242;
+                min-height: 25px;
+            }
+            QComboBox:hover {
+                border-color: #1976d2;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #424242;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                border: 2px solid #2196f3;
+                border-radius: 6px;
+                selection-background-color: #2196f3;
+                selection-color: white;
+                padding: 5px;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                min-height: 30px;
+                padding: 5px 10px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #e3f2fd;
+                color: #1976d2;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #2196f3;
+                color: white;
+            }
+        """)
+        # Use activated signal instead of currentTextChanged - only fires on user interaction
+        self.piece_style_combo.activated.connect(self.on_piece_style_changed)
+        style_layout.addWidget(self.piece_style_combo)
+        
+        layout.addWidget(style_frame)
+        
         # Offer Draw button - sends MSG_C2S_OFFER_DRAW (0x0022)
-        self.draw_button = QPushButton("🤝 Offer Draw")
+        self.draw_button = QPushButton("Offer Draw")
         self.draw_button.setMinimumHeight(45)
         self.draw_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         self.draw_button.setStyleSheet("""
@@ -275,7 +362,7 @@ class GameWindow(QWidget):
         layout.addWidget(self.draw_button)
         
         # Resign button - sends MSG_C2S_RESIGN (0x0021)
-        self.resign_button = QPushButton("🏳️ Resign")
+        self.resign_button = QPushButton("Resign")
         self.resign_button.setMinimumHeight(45)
         self.resign_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         self.resign_button.setStyleSheet("""
@@ -307,7 +394,7 @@ class GameWindow(QWidget):
         info_layout = QVBoxLayout(info_frame)
         info_layout.setSpacing(8)
         
-        info_title = QLabel("ℹ️ Game Info")
+        info_title = QLabel("Game Info")
         info_title.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         info_title.setStyleSheet("color: #424242;")
         info_layout.addWidget(info_title)
@@ -322,7 +409,7 @@ class GameWindow(QWidget):
         layout.addStretch()
         
         # Quit button
-        self.quit_button = QPushButton("⬅️ Back to Lobby")
+        self.quit_button = QPushButton("Back to Lobby")
         self.quit_button.setMinimumHeight(45)
         self.quit_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         self.quit_button.setStyleSheet("""
@@ -344,6 +431,23 @@ class GameWindow(QWidget):
         layout.addWidget(self.quit_button)
         
         return panel
+    
+    def on_piece_style_changed(self, index):
+        """Handle piece style change"""
+        # Get the text from the selected index
+        style = self.piece_style_combo.itemText(index)
+        
+        # Close popup immediately
+        self.piece_style_combo.hidePopup()
+        
+        # Use QTimer to update board after popup closes
+        # This ensures the popup closes smoothly before the potentially heavy update
+        QTimer.singleShot(0, lambda: self._update_piece_style(style))
+    
+    def _update_piece_style(self, style):
+        """Internal method to update piece style"""
+        if self.chess_board:
+            self.chess_board.set_piece_style(style)
     
     def setup_network_handlers(self):
         """Setup network message handlers"""
@@ -392,7 +496,7 @@ class GameWindow(QWidget):
         # Update status
         board = chess.Board(fen)
         if board.turn == (chess.WHITE if self.my_color == 'white' else chess.BLACK):
-            self.status_label.setText("Your turn ♟️")
+            self.status_label.setText("Your turn")
             self.status_label.setStyleSheet("""
                 color: white; 
                 padding: 12px; 
@@ -401,7 +505,7 @@ class GameWindow(QWidget):
                 border-radius: 8px;
             """)
         else:
-            self.status_label.setText("Opponent's turn ⏳")
+            self.status_label.setText("Opponent's turn")
             self.status_label.setStyleSheet("""
                 color: white; 
                 padding: 12px; 
@@ -412,7 +516,7 @@ class GameWindow(QWidget):
         
         # Check for check
         if data.get('is_check'):
-            self.status_label.setText(self.status_label.text() + " ⚠️ CHECK!")
+            self.status_label.setText(self.status_label.text() + " CHECK!")
             self.status_label.setStyleSheet("""
                 color: white; 
                 padding: 12px; 

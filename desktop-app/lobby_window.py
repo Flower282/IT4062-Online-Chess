@@ -6,10 +6,12 @@ Replaces React HomePage component
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QFrame, QListWidget, QMessageBox,
-                            QComboBox, QListWidgetItem)
+                            QComboBox, QListWidgetItem, QScrollArea, QTableWidget,
+                            QTableWidgetItem, QHeaderView, QGridLayout, QSizePolicy)
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
 from network_client import MessageTypeS2C
+from datetime import datetime
 
 
 class LobbyWindow(QWidget):
@@ -35,13 +37,23 @@ class LobbyWindow(QWidget):
         self.network = network_client
         self.user_data = user_data
         self.is_waiting = False
+        self.game_history = []  # Store game history
+        # Stats from server
+        self.stats = {
+            'wins': 0,
+            'losses': 0,
+            'draws': 0,
+            'total_games': 0
+        }
         self.init_ui()
         self.setup_network_handlers()
+        # Request game history on startup
+        QTimer.singleShot(500, self.on_refresh_stats)
     
     def init_ui(self):
         """Initialize lobby UI"""
         self.setWindowTitle("Chess Lobby")
-        self.setFixedSize(1280, 720)
+        self.setFixedSize(1280, 800)  # Increased height from 720 to 800
         
         # Main layout
         main_layout = QVBoxLayout()
@@ -56,19 +68,20 @@ class LobbyWindow(QWidget):
         content_layout = QHBoxLayout()
         content_layout.setSpacing(15)
         
-        # Left side - Matchmaking (35%)
+        # Left side - Matchmaking (30%)
         matchmaking_panel = self.create_matchmaking_panel()
-        content_layout.addWidget(matchmaking_panel, 35)
+        content_layout.addWidget(matchmaking_panel, 30)
         
-        # Middle - Online Users (35%)
+        # Middle - Online Users (30%)
         online_users_panel = self.create_online_users_panel()
-        content_layout.addWidget(online_users_panel, 35)
+        content_layout.addWidget(online_users_panel, 30)
         
-        # Right side - User stats (30%)
+        # Right side - User stats (40%)
         stats_panel = self.create_stats_panel()
-        content_layout.addWidget(stats_panel, 30)
+        content_layout.addWidget(stats_panel, 40)
         
-        main_layout.addLayout(content_layout)
+        # Add content layout with stretch to fill remaining space
+        main_layout.addLayout(content_layout, 1)
         
         self.setLayout(main_layout)
         self.setStyleSheet("QWidget { background-color: #f5f5f5; }")
@@ -90,23 +103,12 @@ class LobbyWindow(QWidget):
         layout.setContentsMargins(10, 5, 10, 5)
         
         # Title
-        title = QLabel("♔ Chess Lobby ♔")
+        title = QLabel("Chess Lobby")
         title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
         title.setStyleSheet("color: white;")
         layout.addWidget(title)
         
         layout.addStretch()
-        
-        # User info
-        username_label = QLabel(f"Welcome, {self.user_data.get('username', 'Player')}!")
-        username_label.setFont(QFont("Arial", 13))
-        username_label.setStyleSheet("color: white;")
-        layout.addWidget(username_label)
-        
-        rating_label = QLabel(f"⭐ {self.user_data.get('rating', 1500)}")
-        rating_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        rating_label.setStyleSheet("color: #ffd700;")
-        layout.addWidget(rating_label)
         
         # Logout button
         self.logout_button = QPushButton("Logout")
@@ -132,6 +134,7 @@ class LobbyWindow(QWidget):
         """Create matchmaking panel"""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         panel.setStyleSheet("""
             QFrame {
                 background-color: white;
@@ -144,8 +147,28 @@ class LobbyWindow(QWidget):
         layout = QVBoxLayout(panel)
         layout.setSpacing(12)
         
+        # User info section
+        user_info_frame = QFrame()
+        user_info_frame.setStyleSheet("background-color: #e3f2fd; border-radius: 6px; padding: 10px;")
+        user_info_layout = QVBoxLayout(user_info_frame)
+        user_info_layout.setSpacing(5)
+        
+        username_label = QLabel(f"{self.user_data.get('username', 'Player')}")
+        username_label.setFont(QFont("Arial", 13, QFont.Weight.Bold))
+        username_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        username_label.setStyleSheet("color: #1976d2;")
+        user_info_layout.addWidget(username_label)
+        
+        rating_label = QLabel(f"Rating: {self.user_data.get('rating', 1500)}")
+        rating_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        rating_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rating_label.setStyleSheet("color: #ff9800;")
+        user_info_layout.addWidget(rating_label)
+        
+        layout.addWidget(user_info_frame)
+        
         # Title
-        title = QLabel("🎮 Find a Game")
+        title = QLabel("Find a Game")
         title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
@@ -156,12 +179,12 @@ class LobbyWindow(QWidget):
         online_layout = QVBoxLayout(online_frame)
         online_layout.setSpacing(8)
         
-        online_title = QLabel("⚔️ Play Online")
+        online_title = QLabel("Play Online")
         online_title.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         online_layout.addWidget(online_title)
         
         # Find Match button
-        self.find_match_button = QPushButton("🎯 Find Match")
+        self.find_match_button = QPushButton("Find Match")
         self.find_match_button.setMinimumHeight(45)
         self.find_match_button.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         self.find_match_button.setStyleSheet("""
@@ -182,7 +205,7 @@ class LobbyWindow(QWidget):
         online_layout.addWidget(self.find_match_button)
         
         # Cancel button (hidden by default)
-        self.cancel_button = QPushButton("❌ Cancel Search")
+        self.cancel_button = QPushButton("Cancel Search")
         self.cancel_button.setMinimumHeight(35)
         self.cancel_button.setFont(QFont("Arial", 11))
         self.cancel_button.setStyleSheet("""
@@ -215,7 +238,7 @@ class LobbyWindow(QWidget):
         ai_layout = QVBoxLayout(ai_frame)
         ai_layout.setSpacing(8)
         
-        ai_title = QLabel("🤖 Play vs AI")
+        ai_title = QLabel("Play vs AI")
         ai_title.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         ai_layout.addWidget(ai_title)
         
@@ -260,7 +283,7 @@ class LobbyWindow(QWidget):
         ai_layout.addLayout(difficulty_layout)
         
         # Play AI button
-        self.play_ai_button = QPushButton("🤖 Start AI Game")
+        self.play_ai_button = QPushButton("Start AI Game")
         self.play_ai_button.setMinimumHeight(45)
         self.play_ai_button.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         self.play_ai_button.setStyleSheet("""
@@ -279,14 +302,13 @@ class LobbyWindow(QWidget):
         
         layout.addWidget(ai_frame)
         
-        layout.addStretch()
-        
         return panel
     
     def create_online_users_panel(self):
         """Create online users list panel with challenge buttons"""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         panel.setStyleSheet("""
             QFrame {
                 background-color: white;
@@ -299,22 +321,20 @@ class LobbyWindow(QWidget):
         layout = QVBoxLayout(panel)
         layout.setSpacing(10)
         
-        # Title with online count
-        title_layout = QHBoxLayout()
-        title = QLabel("👥 Online Players")
+        # Title
+        title = QLabel("Online Players")
         title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        title_layout.addWidget(title)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
         
-        title_layout.addStretch()
-        
+        # Online count
         self.online_count_label = QLabel("0 online")
         self.online_count_label.setStyleSheet("color: #4caf50; font-weight: bold; font-size: 12px;")
-        title_layout.addWidget(self.online_count_label)
-        
-        layout.addLayout(title_layout)
+        self.online_count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.online_count_label)
         
         # Refresh button
-        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn = QPushButton("Refresh")
         refresh_btn.setFixedHeight(30)
         refresh_btn.setStyleSheet("""
             QPushButton {
@@ -351,10 +371,10 @@ class LobbyWindow(QWidget):
                 color: black;
             }
         """)
-        layout.addWidget(self.online_users_list)
+        layout.addWidget(self.online_users_list, 1)  # Stretch to fill space
         
         # Challenge button
-        self.challenge_button = QPushButton("⚔️ Challenge Selected Player")
+        self.challenge_button = QPushButton("Challenge Selected Player")
         self.challenge_button.setMinimumHeight(40)
         self.challenge_button.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         self.challenge_button.setEnabled(False)
@@ -389,18 +409,6 @@ class LobbyWindow(QWidget):
         print("🔄 Requesting online users from server...")
         self.network.get_online_users()
     
-    def load_demo_users(self):
-        """Load demo online users (placeholder until real data from server)"""
-        demo_users = [
-            {"username": "ChessMaster", "rating": 1650, "status": "available"},
-            {"username": "KnightRider", "rating": 1520, "status": "in_game"},
-            {"username": "QueenGambit", "rating": 1800, "status": "available"},
-            {"username": "PawnStorm", "rating": 1420, "status": "available"},
-            {"username": "RookieMoves", "rating": 1350, "status": "available"},
-        ]
-        
-        self.update_online_users(demo_users)
-    
     def update_online_users(self, users_list):
         """Update online users list"""
         self.online_users_list.clear()
@@ -417,12 +425,12 @@ class LobbyWindow(QWidget):
             
             # Create list item
             if status == 'available':
-                item_text = f"🟢 {username} (⭐ {rating})"
+                item_text = f"{username} (Rating: {rating})"
                 available_count += 1
             elif status == 'in_game':
-                item_text = f"🔴 {username} (⭐ {rating}) - In Game"
+                item_text = f"{username} (Rating: {rating}) - In Game"
             else:
-                item_text = f"⚫ {username} (⭐ {rating})"
+                item_text = f"{username} (Rating: {rating})"
             
             item = QListWidgetItem(item_text)
             item.setData(Qt.ItemDataRole.UserRole, user)  # Store user data
@@ -458,7 +466,7 @@ class LobbyWindow(QWidget):
         
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Challenge Sent")
-        msg_box.setText(f"Challenge sent to {opponent_username} (⭐ {opponent_rating})!\n\nWaiting for response...")
+        msg_box.setText(f"Challenge sent to {opponent_username} (Rating: {opponent_rating})!\n\nWaiting for response...")
         msg_box.setStyleSheet("""
             QLabel { min-width: 350px; padding: 15px; font-size: 12px; }
             QPushButton { min-width: 80px; min-height: 30px; }
@@ -483,9 +491,10 @@ class LobbyWindow(QWidget):
         msg_box.exec()
     
     def create_stats_panel(self):
-        """Create user stats panel"""
+        """Create game history panel"""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         panel.setStyleSheet("""
             QFrame {
                 background-color: white;
@@ -496,66 +505,85 @@ class LobbyWindow(QWidget):
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
         
         # Title
-        title = QLabel("📊 Your Stats")
+        title = QLabel("Game History")
         title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
         
-        # Stats (rating removed - already shown in header)
-        stats_data = [
-            ("✅ Wins", self.user_data.get('wins', 0), "#4caf50"),
-            ("❌ Losses", self.user_data.get('losses', 0), "#f44336"),
-            ("🤝 Draws", self.user_data.get('draws', 0), "#ff9800")
-        ]
+        # Quick stats summary - Grid 2x2
+        stats_summary = QFrame()
+        stats_summary.setStyleSheet("background-color: #f5f5f5; border-radius: 4px; padding: 10px;")
+        stats_layout = QGridLayout(stats_summary)
+        stats_layout.setSpacing(10)
+        stats_layout.setContentsMargins(10, 10, 10, 10)
         
-        for label, value, color in stats_data:
-            stat_frame = QFrame()
-            stat_frame.setStyleSheet(f"background-color: #f9f9f9; border-left: 4px solid {color}; border-radius: 4px; padding: 10px;")
-            stat_layout = QHBoxLayout(stat_frame)
-            stat_layout.setContentsMargins(8, 5, 8, 5)
-            
-            name_label = QLabel(label)
-            name_label.setFont(QFont("Arial", 11))
-            stat_layout.addWidget(name_label)
-            
-            stat_layout.addStretch()
-            
-            value_label = QLabel(str(value))
-            value_label.setFont(QFont("Arial", 13, QFont.Weight.Bold))
-            value_label.setStyleSheet(f"color: {color};")
-            stat_layout.addWidget(value_label)
-            
-            layout.addWidget(stat_frame)
+        # Create stats labels that can be updated
+        self.wins_label = QLabel("Wins: 0")
+        self.wins_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.wins_label.setStyleSheet("color: #4caf50; padding: 8px; background-color: white; border-radius: 4px;")
+        self.wins_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        stats_layout.addWidget(self.wins_label, 0, 0)  # Row 0, Col 0
         
-        # Total games
-        total_games = self.user_data.get('wins', 0) + self.user_data.get('losses', 0) + self.user_data.get('draws', 0)
-        win_rate = (self.user_data.get('wins', 0) / total_games * 100) if total_games > 0 else 0
+        self.losses_label = QLabel("Losses: 0")
+        self.losses_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.losses_label.setStyleSheet("color: #f44336; padding: 8px; background-color: white; border-radius: 4px;")
+        self.losses_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        stats_layout.addWidget(self.losses_label, 0, 1)  # Row 0, Col 1
         
-        total_frame = QFrame()
-        total_frame.setStyleSheet("background-color: #e8eaf6; border-radius: 4px; padding: 10px;")
-        total_layout = QVBoxLayout(total_frame)
-        total_layout.setSpacing(5)
+        self.draws_label = QLabel("Draws: 0")
+        self.draws_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.draws_label.setStyleSheet("color: #ff9800; padding: 8px; background-color: white; border-radius: 4px;")
+        self.draws_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        stats_layout.addWidget(self.draws_label, 1, 0)  # Row 1, Col 0
         
-        total_label = QLabel(f"Total Games: {total_games}")
-        total_label.setFont(QFont("Arial", 11))
-        total_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        total_layout.addWidget(total_label)
+        self.winrate_label = QLabel("Win Rate: 0%")
+        self.winrate_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.winrate_label.setStyleSheet("color: #2196f3; padding: 8px; background-color: white; border-radius: 4px;")
+        self.winrate_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        stats_layout.addWidget(self.winrate_label, 1, 1)  # Row 1, Col 1
         
-        winrate_label = QLabel(f"Win Rate: {win_rate:.1f}%")
-        winrate_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        winrate_label.setStyleSheet("color: #3f51b5;")
-        winrate_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        total_layout.addWidget(winrate_label)
+        layout.addWidget(stats_summary)
         
-        layout.addWidget(total_frame)
+        # Game history table
+        self.history_table = QTableWidget()
+        self.history_table.setColumnCount(3)
+        self.history_table.setHorizontalHeaderLabels(["Opponent", "Result", "Time"])
+        self.history_table.horizontalHeader().setVisible(True)
+        self.history_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.history_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.history_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.history_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.history_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.history_table.verticalHeader().setVisible(False)
+        self.history_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: white;
+                gridline-color: #e0e0e0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #e3f2fd;
+                color: black;
+            }
+            QHeaderView::section {
+                background-color: #2196f3;
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+        """)
+        layout.addWidget(self.history_table, 1)  # Stretch to fill space
         
-        layout.addStretch()
-        
-        # Refresh stats button
-        refresh_button = QPushButton("🔄 Refresh Stats")
+        # Refresh button
+        refresh_button = QPushButton("Refresh")
         refresh_button.setFixedHeight(35)
         refresh_button.setStyleSheet("""
             QPushButton {
@@ -587,6 +615,8 @@ class LobbyWindow(QWidget):
             self.handle_game_start(data)
         elif message_id == MessageTypeS2C.STATS_RESPONSE:
             self.handle_stats_response(data)
+        elif message_id == MessageTypeS2C.HISTORY_RESPONSE:
+            self.handle_history_response(data)
         elif message_id == MessageTypeS2C.ONLINE_USERS_LIST:
             self.handle_online_users_list(data)
     
@@ -633,7 +663,7 @@ class LobbyWindow(QWidget):
         opponent = data.get('opponent_username', 'Unknown')
         opponent_rating = data.get('opponent_rating', '?')
         
-        self.match_status_label.setText(f"✓ Match found vs {opponent} ({opponent_rating})!")
+        self.match_status_label.setText(f"Match found vs {opponent} ({opponent_rating})!")
         
         # Match found, wait for GAME_START message
     
@@ -667,30 +697,122 @@ class LobbyWindow(QWidget):
     
     def on_refresh_stats(self):
         """
-        Request updated stats
-        Sends MSG_C2S_GET_STATS (0x0030)
+        Request updated stats and game history
+        Sends MSG_C2S_GET_STATS (0x0030) and MSG_C2S_GET_HISTORY (0x0031)
         """
         self.network.get_stats()
+        self.network.get_history()
     
     def handle_stats_response(self, data: dict):
         """
         Handle stats response
         Receives MSG_S2C_STATS_RESPONSE (0x1300)
         """
-        # Update user data and UI
-        self.user_data.update(data)
+        if 'error' in data:
+            print(f"❌ Stats error: {data['error']}")
+            return
         
-        # Refresh stats display
-        # TODO: Update stat labels dynamically
+        # Update stats from server
+        self.stats['wins'] = data.get('wins', 0)
+        self.stats['losses'] = data.get('losses', 0)
+        self.stats['draws'] = data.get('draws', 0)
+        self.stats['total_games'] = data.get('total_games', 0)
         
-        msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Stats Updated")
-        msg_box.setText("Your statistics have been refreshed!")
-        msg_box.setStyleSheet("""
-            QLabel { min-width: 300px; padding: 15px; font-size: 12px; }
-            QPushButton { min-width: 80px; min-height: 30px; }
-        """)
-        msg_box.exec()
+        print(f"📊 Stats: W:{self.stats['wins']} L:{self.stats['losses']} D:{self.stats['draws']}")
+        
+        # Update UI
+        self.update_stats_display()
+    
+    def update_stats_display(self):
+        """Update the stats labels with current data"""
+        wins = self.stats['wins']
+        losses = self.stats['losses']
+        draws = self.stats['draws']
+        total = self.stats['total_games']
+        
+        # Update labels
+        self.wins_label.setText(f"Wins: {wins}")
+        self.losses_label.setText(f"Losses: {losses}")
+        self.draws_label.setText(f"Draws: {draws}")
+        
+        # Calculate and update win rate
+        win_rate = (wins / total * 100) if total > 0 else 0
+        self.winrate_label.setText(f"Win Rate: {win_rate:.1f}%")
+        
+        print(f"📊 Stats displayed: W:{wins} L:{losses} D:{draws} Total:{total}")
+    
+    def handle_history_response(self, data: dict):
+        """
+        Handle game history response
+        Receives MSG_S2C_HISTORY_RESPONSE (0x1301)
+        """
+        if 'error' in data:
+            print(f"❌ History error: {data['error']}")
+            return
+        
+        games = data.get('games', [])
+        self.game_history = games
+        print(f"📜 Received {len(games)} game history entries")
+        
+        # Debug: print first game if exists
+        if games:
+            print(f"📜 First game sample: {games[0]}")
+        
+        # Update history table
+        self.update_history_table()
+    
+    def update_history_table(self):
+        """Update the history table with game data"""
+        self.history_table.setRowCount(0)
+        
+        print(f"📊 Updating history table with {len(self.game_history)} games")
+        
+        for game in self.game_history:
+            row = self.history_table.rowCount()
+            self.history_table.insertRow(row)
+            
+            # Get opponent name from server response
+            opponent = game.get('opponent', 'Unknown')
+            
+            # Opponent name
+            opponent_item = QTableWidgetItem(opponent)
+            opponent_item.setFont(QFont("Arial", 10))
+            self.history_table.setItem(row, 0, opponent_item)
+            
+            # Result - use user_result from server (from user's perspective)
+            user_result = game.get('user_result', 'unknown')
+            
+            if user_result == 'win':
+                result_text = "Win"
+                result_color = QColor(76, 175, 80)  # Green
+            elif user_result == 'loss':
+                result_text = "Loss"
+                result_color = QColor(244, 67, 54)  # Red
+            elif user_result == 'draw':
+                result_text = "Draw"
+                result_color = QColor(255, 152, 0)  # Orange
+            else:
+                result_text = "Unfinished"
+                result_color = QColor(158, 158, 158)  # Gray
+            
+            result_item = QTableWidgetItem(result_text)
+            result_item.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            result_item.setForeground(result_color)
+            self.history_table.setItem(row, 1, result_item)
+            
+            # Time - use 'date' field from server
+            date_str = game.get('date', 'N/A')
+            
+            time_item = QTableWidgetItem(date_str)
+            time_item.setFont(QFont("Arial", 9))
+            time_item.setForeground(QColor(117, 117, 117))
+            self.history_table.setItem(row, 2, time_item)
+        
+        # Adjust row heights
+        for i in range(self.history_table.rowCount()):
+            self.history_table.setRowHeight(i, 35)
+        
+        print(f"✅ History table updated with {self.history_table.rowCount()} rows")
     
     def handle_online_users_list(self, data: dict):
         """
