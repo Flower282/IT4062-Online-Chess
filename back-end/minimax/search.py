@@ -42,7 +42,7 @@ def quiescence(alpha, beta, board, with_ml, classifier):
     if (alpha < stand_pat):
         alpha = stand_pat
 
-    if not with_ml:
+    if with_ml:
         moves = filter_good_moves(board=board, classifier=classifier, first_print=False)
     else:
         moves = list(board.legal_moves)

@@ -6,6 +6,8 @@ Main server class kết hợp NetworkManager và các handlers
 from database import init_db
 from tcp_server.network_bridge import NetworkManager, MessageTypeC2S, MessageTypeS2C
 from handlers import AuthHandler, GameHandler, MatchmakingHandler, StatsHandler
+from ml.model_loader import load_model
+import time
 
 
 class ChessGameServer:
@@ -26,10 +28,13 @@ class ChessGameServer:
         # Initialize network manager
         self.network = NetworkManager()
         
+        # Load ML model
+        self.model = load_model()
+
         # Initialize handlers
         self.auth_handler = AuthHandler(self.network)
         self.matchmaking_handler = MatchmakingHandler(self.network)
-        self.game_handler = GameHandler(self.network, self.matchmaking_handler)
+        self.game_handler = GameHandler(self.network, self.matchmaking_handler, self.model)
         self.stats_handler = StatsHandler(self.network)
         
         # Set MessageTypeS2C for all handlers (including win_handler inside game_handler)
@@ -103,7 +108,22 @@ class ChessGameServer:
         Args:
             poll_timeout_ms: Poll timeout in milliseconds
         """
-        self.network.run_forever(poll_timeout_ms)
+        print(f"✓ Server event loop started on port {self.port}")
+        try:
+            while True:
+                # Poll for network events
+                self.network.poll(poll_timeout_ms)
+                
+                # Process events
+                self.network.process_events()
+                
+                # Check for game timeouts
+                self.game_handler.check_timeouts()
+                
+        except KeyboardInterrupt:
+            print("\n⚠ Server interrupted by user")
+        finally:
+            self.stop()
 
 
 def main():
