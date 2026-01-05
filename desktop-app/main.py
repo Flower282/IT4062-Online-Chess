@@ -11,6 +11,7 @@ from login_window import LoginWindow
 from register_window import RegisterWindow
 from lobby_window import LobbyWindow
 from game_window import GameWindow
+from config import SERVER_HOST, SERVER_PORT, APP_TITLE, APP_WIDTH, APP_HEIGHT
 
 
 class ChessApplication(QStackedWidget):
@@ -27,7 +28,7 @@ class ChessApplication(QStackedWidget):
         super().__init__()
         
         # Initialize network client
-        self.network = NetworkClient(host='localhost', port=8765)
+        self.network = NetworkClient(host=SERVER_HOST, port=SERVER_PORT)
         
         # User session data
         self.user_data = None
@@ -41,10 +42,10 @@ class ChessApplication(QStackedWidget):
     
     def init_ui(self):
         """Initialize application UI"""
-        self.setWindowTitle("Chess Desktop App")
+        self.setWindowTitle(APP_TITLE)
         
-        # Set fixed size 1280x853
-        self.setFixedSize(1280, 853)
+        # Set fixed size
+        self.setFixedSize(APP_WIDTH, APP_HEIGHT)
         
         # Create windows
         self.login_window = LoginWindow(self.network)
@@ -249,7 +250,7 @@ class ChessApplication(QStackedWidget):
         
         if reply == QMessageBox.StandardButton.Yes:
             # Disconnect from server
-            if self.network.connected_flag:
+            if self.network.is_connected():
                 self.network.disconnect_from_server()
             
             event.accept()

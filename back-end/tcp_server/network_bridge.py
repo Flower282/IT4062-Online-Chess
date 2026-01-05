@@ -38,9 +38,11 @@ class MessageTypeC2S(IntEnum):
     OFFER_DRAW = 0x0022
     ACCEPT_DRAW = 0x0023
     DECLINE_DRAW = 0x0024
+    CHALLENGE = 0x0025
+    ACCEPT_CHALLENGE = 0x0026
+    DECLINE_CHALLENGE = 0x0027
     GET_STATS = 0x0030
     GET_HISTORY = 0x0031
-    GET_REPLAY = 0x0032
 
 
 class MessageTypeS2C(IntEnum):
@@ -56,9 +58,11 @@ class MessageTypeS2C(IntEnum):
     GAME_OVER = 0x1202
     DRAW_OFFER_RECEIVED = 0x1203
     DRAW_OFFER_DECLINED = 0x1204
+    CHALLENGE_RECEIVED = 0x1205
+    CHALLENGE_ACCEPTED = 0x1206
+    CHALLENGE_DECLINED = 0x1207
     STATS_RESPONSE = 0x1300
     HISTORY_RESPONSE = 0x1301
-    REPLAY_DATA = 0x1302
 
 
 class EventType(IntEnum):
@@ -891,7 +895,12 @@ if __name__ == "__main__":
     print("  🎬 0x0032 GET_REPLAY - Get game replay")
     print("=" * 60)
     
+    # Import config for SERVER_PORT
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config import SERVER_PORT
+    
     # Start server
-    if manager.start(port=8765):
+    if manager.start(port=SERVER_PORT):
         # Run event loop
         manager.run_forever()

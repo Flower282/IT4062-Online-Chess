@@ -347,23 +347,14 @@ class GameHandler:
             opponent_fd = black_fd if client_fd == white_fd else white_fd
             
             if opponent_fd and opponent_fd != -1:
-                # Send draw offer to opponent
+                # Send draw offer to opponent only
                 self.network.send_to_client(opponent_fd, self.MessageTypeS2C.DRAW_OFFER_RECEIVED, {
                     'game_id': game_id,
                     'message': 'Opponent offered a draw'
                 })
-                
-                # Acknowledge to sender
-                self.network.send_to_client(client_fd, self.MessageTypeS2C.DRAW_OFFER_RECEIVED, {
-                    'game_id': game_id,
-                    'message': 'Draw offer sent to opponent'
-                })
+                print(f"✓ Draw offer sent to opponent (fd={opponent_fd})")
         else:
-            # Fallback acknowledgment
-            self.network.send_to_client(client_fd, self.MessageTypeS2C.DRAW_OFFER_RECEIVED, {
-                'game_id': game_id,
-                'message': 'Draw offer sent to opponent'
-            })
+            print(f"⚠ Game {game_id} not found or is AI game")
     
     def handle_accept_draw(self, client_fd: int, data: dict):
         """
@@ -408,9 +399,6 @@ class GameHandler:
                     'game_id': game_id,
                     'message': 'Opponent declined draw offer'
                 })
-        
-        # Acknowledge to decliner
-        self.network.send_to_client(client_fd, self.MessageTypeS2C.DRAW_OFFER_DECLINED, {
-            'game_id': game_id,
-            'message': 'Draw offer declined'
-        })
+                print(f"✓ Draw decline notification sent to opponent (fd={opponent_fd})")
+        else:
+            print(f"⚠ Game {game_id} not found or is AI game")

@@ -54,7 +54,7 @@ def close_db_connection():
     global _client
     if _client:
         _client.close()
-        print("Database connection closed")
+
 
 # Khởi tạo database khi import
 init_db()

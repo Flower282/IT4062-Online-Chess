@@ -459,10 +459,11 @@ class LobbyWindow(QWidget):
         
         user_data = selected_items[0].data(Qt.ItemDataRole.UserRole)
         opponent_username = user_data['username']
+        opponent_user_id = user_data['user_id']
         opponent_rating = user_data.get('rating', '?')
         
-        # TODO: Send challenge request to server
-        # self.network.send_challenge(opponent_user_id)
+        # Send challenge request to server
+        self.network.challenge_player(opponent_user_id, opponent_username)
         
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Challenge Sent")
@@ -476,6 +477,7 @@ class LobbyWindow(QWidget):
         # Disable button while waiting
         self.challenge_button.setEnabled(False)
         self.challenge_button.setText("⏳ Challenge Sent...")
+
     
     def on_refresh_online_users(self):
         """Refresh online users list"""
@@ -619,6 +621,13 @@ class LobbyWindow(QWidget):
             self.handle_history_response(data)
         elif message_id == MessageTypeS2C.ONLINE_USERS_LIST:
             self.handle_online_users_list(data)
+        elif message_id == MessageTypeS2C.CHALLENGE_RECEIVED:
+            self.handle_challenge_received(data)
+        elif message_id == MessageTypeS2C.CHALLENGE_ACCEPTED:
+            self.handle_challenge_accepted(data)
+        elif message_id == MessageTypeS2C.CHALLENGE_DECLINED:
+            self.handle_challenge_declined(data)
+
     
     def on_find_match(self):
         """
@@ -823,3 +832,62 @@ class LobbyWindow(QWidget):
             users = data.get('users', [])
             print(f"📝 Received {len(users)} online users")
             self.update_online_users(users)
+    
+    def handle_challenge_received(self, data: dict):
+        """
+        Handle incoming challenge from another player
+        Receives MSG_S2C_CHALLENGE_RECEIVED (0x1205)
+        """
+        challenger_username = data.get('challenger_username', 'Unknown')
+        challenger_rating = data.get('challenger_rating', '?')
+        challenger_id = data.get('challenger_id')
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("⚔️ Challenge Received!")
+        msg_box.setText(f"{challenger_username} (Rating: {challenger_rating}) wants to challenge you!")
+        msg_box.setInformativeText("Do you accept?")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
+        
+        result = msg_box.exec()
+        
+        # Send accept/decline response to server
+        if result == QMessageBox.StandardButton.Yes:
+            self.network.accept_challenge(challenger_id)
+        else:
+            self.network.decline_challenge(challenger_id)
+    
+    def handle_challenge_accepted(self, data: dict):
+        """
+        Handle challenge acceptance
+        Receives MSG_S2C_CHALLENGE_ACCEPTED (0x1206)
+        """
+        opponent_username = data.get('opponent_username', 'Unknown')
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Challenge Accepted")
+        msg_box.setText(f"{opponent_username} accepted your challenge!")
+        msg_box.setIcon(QMessageBox.Icon.Information)
+        msg_box.exec()
+        
+        # Reset challenge button
+        self.challenge_button.setEnabled(True)
+        self.challenge_button.setText("Challenge Selected Player")
+    
+    def handle_challenge_declined(self, data: dict):
+        """
+        Handle challenge declined
+        Receives MSG_S2C_CHALLENGE_DECLINED (0x1207)
+        """
+        opponent_username = data.get('opponent_username', 'Unknown')
+        reason = data.get('reason', 'Challenge was declined')
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Challenge Declined")
+        msg_box.setText(f"{opponent_username}: {reason}")
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.exec()
+        
+        # Reset challenge button
+        self.challenge_button.setEnabled(True)
+        self.challenge_button.setText("Challenge Selected Player")

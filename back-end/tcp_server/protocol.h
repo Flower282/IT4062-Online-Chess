@@ -24,11 +24,13 @@ typedef enum {
     MSG_C2S_OFFER_DRAW          = 0x0022,
     MSG_C2S_ACCEPT_DRAW         = 0x0023,
     MSG_C2S_DECLINE_DRAW        = 0x0024,
+    MSG_C2S_CHALLENGE           = 0x0025,
+    MSG_C2S_ACCEPT_CHALLENGE    = 0x0026,
+    MSG_C2S_DECLINE_CHALLENGE   = 0x0027,
     
     /* Statistics & History */
     MSG_C2S_GET_STATS           = 0x0030,
-    MSG_C2S_GET_HISTORY         = 0x0031,
-    MSG_C2S_GET_REPLAY          = 0x0032
+    MSG_C2S_GET_HISTORY         = 0x0031
 } MessageTypeC2S;
 
 /* Server to Client (S2C) Message Types */
@@ -49,11 +51,13 @@ typedef enum {
     MSG_S2C_GAME_OVER           = 0x1202,
     MSG_S2C_DRAW_OFFER_RECEIVED = 0x1203,
     MSG_S2C_DRAW_OFFER_DECLINED = 0x1204,
+    MSG_S2C_CHALLENGE_RECEIVED  = 0x1205,
+    MSG_S2C_CHALLENGE_ACCEPTED  = 0x1206,
+    MSG_S2C_CHALLENGE_DECLINED  = 0x1207,
     
     /* Statistics & History Responses */
     MSG_S2C_STATS_RESPONSE      = 0x1300,
-    MSG_S2C_HISTORY_RESPONSE    = 0x1301,
-    MSG_S2C_REPLAY_DATA         = 0x1302
+    MSG_S2C_HISTORY_RESPONSE    = 0x1301
 } MessageTypeS2C;
 
 /* ========== Protocol Header Structure ========== */

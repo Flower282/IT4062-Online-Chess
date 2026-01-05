@@ -1,58 +1,19 @@
 """
 TCP Client Network Manager
-Handles communication with C TCP server using the protocol defined in back-end/tcp_server/protocol.h
+Qt wrapper around NetworkBridge for UI integration
 """
 
-import socket
-import struct
-import json
-import threading
-import queue
-from enum import IntEnum
 from typing import Optional, Dict, Any, Callable
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
-
-class MessageTypeC2S(IntEnum):
-    """Client to Server message types"""
-    REGISTER = 0x0001
-    LOGIN = 0x0002
-    GET_ONLINE_USERS = 0x0003
-    FIND_MATCH = 0x0010
-    CANCEL_FIND_MATCH = 0x0011
-    FIND_AI_MATCH = 0x0012
-    MAKE_MOVE = 0x0020
-    RESIGN = 0x0021
-    OFFER_DRAW = 0x0022
-    ACCEPT_DRAW = 0x0023
-    DECLINE_DRAW = 0x0024
-    GET_STATS = 0x0030
-    GET_HISTORY = 0x0031
-    GET_REPLAY = 0x0032
-
-
-class MessageTypeS2C(IntEnum):
-    """Server to Client message types"""
-    REGISTER_RESULT = 0x1001
-    LOGIN_RESULT = 0x1002
-    USER_STATUS_UPDATE = 0x1003
-    ONLINE_USERS_LIST = 0x1004
-    MATCH_FOUND = 0x1100
-    GAME_START = 0x1101
-    GAME_STATE_UPDATE = 0x1200
-    INVALID_MOVE = 0x1201
-    GAME_OVER = 0x1202
-    DRAW_OFFER_RECEIVED = 0x1203
-    DRAW_OFFER_DECLINED = 0x1204
-    STATS_RESPONSE = 0x1300
-    HISTORY_RESPONSE = 0x1301
-    REPLAY_DATA = 0x1302
+from network_bridge_client import NetworkBridge, MessageTypeC2S, MessageTypeS2C, EventType
+from config import SERVER_HOST, SERVER_PORT
 
 
 class NetworkClient(QObject):
     """
-    TCP Client with Qt Signals for UI integration
-    Runs in a separate thread to avoid blocking UI
+    TCP Client with Qt Signals for UI integration.
+    Wraps NetworkBridge to provide Qt signals and high-level API.
     """
     
     # Qt Signals for UI updates
@@ -61,59 +22,89 @@ class NetworkClient(QObject):
     message_received = pyqtSignal(int, dict)  # message_id, data
     error_occurred = pyqtSignal(str)
     
-    def __init__(self, host='localhost', port=8765):
+    def __init__(self, host=SERVER_HOST, port=SERVER_PORT):
         super().__init__()
         self.host = host
         self.port = port
-        self.socket = None
-        self.connected_flag = False
-        self.running = False
         
-        # Worker thread
-        self.receive_thread = None
+        # Create network bridge
+        self.bridge = NetworkBridge()
         
-        # Message handlers registry
-        self.handlers: Dict[int, Callable] = {}
+        # Register bridge event handlers
+        self._register_bridge_handlers()
+        
+        # Timer for polling events
+        self.poll_timer = QTimer()
+        self.poll_timer.timeout.connect(self._poll_events)
+    
+    def _register_bridge_handlers(self):
+        """Register handlers with the bridge to convert to Qt signals"""
+        
+        # Connection events
+        self.bridge.register_handler(EventType.CONNECTED, self._on_connected)
+        self.bridge.register_handler(EventType.DISCONNECTED, self._on_disconnected)
+        self.bridge.register_handler(EventType.ERROR, self._on_error)
+        
+        # Register all S2C message handlers to emit Qt signals
+        for msg_type in MessageTypeS2C:
+            self.bridge.register_handler(msg_type.value, self._create_message_handler(msg_type.value))
+    
+    def _create_message_handler(self, message_id: int):
+        """Create a message handler that emits Qt signal"""
+        def handler(data: Dict[str, Any]):
+            self.message_received.emit(message_id, data)
+        return handler
+    
+    def _on_connected(self):
+        """Bridge callback: connection established"""
+        self.connected.emit()
+    
+    def _on_disconnected(self):
+        """Bridge callback: disconnected"""
+        self.disconnected.emit()
+        self.poll_timer.stop()
+    
+    def _on_error(self):
+        """Bridge callback: error occurred"""
+        self.error_occurred.emit("Network error")
     
     def connect_to_server(self) -> bool:
         """Connect to the TCP server"""
         try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(5.0)  # 5 second timeout for connection
-            self.socket.connect((self.host, self.port))
-            self.socket.settimeout(None)  # Remove timeout for normal operation
-            
-            self.connected_flag = True
-            self.running = True
-            
-            # Start receive thread
-            self.receive_thread = threading.Thread(target=self._receive_loop, daemon=True)
-            self.receive_thread.start()
-            
-            self.connected.emit()
-            return True
-        
+            result = self.bridge.connect(self.host, self.port)
+            if result:
+                # Start polling for events
+                self.poll_timer.start(50)  # Poll every 50ms
+            return result
         except Exception as e:
             self.error_occurred.emit(f"Connection failed: {e}")
             return False
     
     def disconnect_from_server(self):
         """Disconnect from server"""
-        self.running = False
-        self.connected_flag = False
+        self.poll_timer.stop()
+        self.bridge.disconnect()
+    
+    def is_connected(self) -> bool:
+        """
+        Check if connected to server.
         
-        if self.socket:
-            try:
-                self.socket.close()
-            except:
-                pass
-            self.socket = None
+        Returns:
+            True if connected, False otherwise
+        """
+        return self.bridge.is_connected()
+    
+    def _poll_events(self):
+        """Poll for events from bridge (called by QTimer)"""
+        # Poll C library through bridge
+        self.bridge.poll(10)  # 10ms timeout
         
-        self.disconnected.emit()
+        # Process all pending events
+        self.bridge.process_events()
     
     def send_message(self, message_id: int, data: Dict[str, Any]) -> bool:
         """
-        Send a message to the server
+        Send a message to the server.
         
         Args:
             message_id: Message type ID (from MessageTypeC2S)
@@ -122,84 +113,25 @@ class NetworkClient(QObject):
         Returns:
             True if sent successfully
         """
-        if not self.connected_flag or not self.socket:
-            self.error_occurred.emit("Not connected to server")
-            return False
-        
-        try:
-            # Encode payload as JSON
-            payload = json.dumps(data).encode('utf-8')
-            payload_len = len(payload)
-            
-            # Pack header (network byte order: big-endian)
-            # Format: !HI = unsigned short (2 bytes) + unsigned int (4 bytes)
-            header = struct.pack('!HI', message_id, payload_len)
-            
-            # Send header + payload
-            message = header + payload
-            self.socket.sendall(message)
-            
-            return True
-        
-        except Exception as e:
-            self.error_occurred.emit(f"Send failed: {e}")
-            self.disconnect_from_server()
-            return False
-    
-    def _receive_loop(self):
-        """Background thread to receive messages"""
-        while self.running and self.connected_flag:
-            try:
-                # Receive header (6 bytes)
-                header = self._recv_exactly(6)
-                if not header:
-                    break
-                
-                # Unpack header
-                message_id, payload_len = struct.unpack('!HI', header)
-                
-                # Receive payload
-                payload = self._recv_exactly(payload_len)
-                if not payload:
-                    break
-                
-                # Decode JSON
-                data = json.loads(payload.decode('utf-8'))
-                
-                # Emit signal to UI thread
-                self.message_received.emit(message_id, data)
-            
-            except Exception as e:
-                if self.running:
-                    self.error_occurred.emit(f"Receive error: {e}")
-                break
-        
-        # Disconnected
-        if self.running:
-            self.disconnect_from_server()
-    
-    def _recv_exactly(self, num_bytes: int) -> Optional[bytes]:
-        """Receive exactly num_bytes from socket"""
-        data = b''
-        while len(data) < num_bytes:
-            try:
-                chunk = self.socket.recv(num_bytes - len(data))
-                if not chunk:
-                    return None
-                data += chunk
-            except:
-                return None
-        return data
+        return self.bridge.send_message(message_id, data)
     
     def register_handler(self, message_id: int, handler: Callable):
         """
-        Register a handler for a specific message type
+        Register an additional handler for a specific message type.
+        Handler will be called when message is received, and Qt signal will also be emitted.
+        
+        Note: This adds a custom handler alongside the default Qt signal emission.
         
         Args:
             message_id: Message type ID (from MessageTypeS2C)
             handler: Callable with signature: handler(data: Dict)
         """
-        self.handlers[message_id] = handler
+        # Create a wrapper that calls both the signal emission and custom handler
+        def wrapped_handler(data: Dict[str, Any]):
+            self.message_received.emit(message_id, data)
+            handler(data)
+        
+        self.bridge.register_handler(message_id, wrapped_handler)
     
     # High-level API methods
     
@@ -267,6 +199,25 @@ class NetworkClient(QObject):
     def decline_draw(self):
         """Decline draw offer"""
         return self.send_message(MessageTypeC2S.DECLINE_DRAW, {})
+    
+    def challenge_player(self, opponent_user_id: int, opponent_username: str):
+        """Send challenge to specific player"""
+        return self.send_message(MessageTypeC2S.CHALLENGE, {
+            'opponent_user_id': opponent_user_id,
+            'opponent_username': opponent_username
+        })
+    
+    def accept_challenge(self, challenger_id: int):
+        """Accept challenge from another player"""
+        return self.send_message(MessageTypeC2S.ACCEPT_CHALLENGE, {
+            'challenger_id': challenger_id
+        })
+    
+    def decline_challenge(self, challenger_id: int):
+        """Decline challenge from another player"""
+        return self.send_message(MessageTypeC2S.DECLINE_CHALLENGE, {
+            'challenger_id': challenger_id
+        })
     
     def get_stats(self):
         """Request user statistics"""

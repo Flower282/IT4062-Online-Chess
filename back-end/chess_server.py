@@ -8,6 +8,7 @@ from tcp_server.network_bridge import NetworkManager, MessageTypeC2S, MessageTyp
 from handlers import AuthHandler, GameHandler, MatchmakingHandler, StatsHandler
 from ml.model_loader import load_model
 import time
+from config import SERVER_PORT
 
 
 class ChessGameServer:
@@ -16,7 +17,7 @@ class ChessGameServer:
     Kết hợp network layer và game logic
     """
     
-    def __init__(self, port=8765):
+    def __init__(self, port=SERVER_PORT):
         """
         Initialize Chess Game Server
         
@@ -67,29 +68,13 @@ class ChessGameServer:
         self.network.register_handler(MessageTypeC2S.OFFER_DRAW, self.game_handler.handle_offer_draw)
         self.network.register_handler(MessageTypeC2S.ACCEPT_DRAW, self.game_handler.handle_accept_draw)
         self.network.register_handler(MessageTypeC2S.DECLINE_DRAW, self.game_handler.handle_decline_draw)
+        self.network.register_handler(MessageTypeC2S.CHALLENGE, self.matchmaking_handler.handle_challenge)
+        self.network.register_handler(MessageTypeC2S.ACCEPT_CHALLENGE, self.matchmaking_handler.handle_accept_challenge)
+        self.network.register_handler(MessageTypeC2S.DECLINE_CHALLENGE, self.matchmaking_handler.handle_decline_challenge)
         
-        # Stats handlers (0x0030-0x0032)
+        # Stats handlers (0x0030-0x0031)
         self.network.register_handler(MessageTypeC2S.GET_STATS, self.stats_handler.handle_get_stats)
         self.network.register_handler(MessageTypeC2S.GET_HISTORY, self.stats_handler.handle_get_history)
-        self.network.register_handler(MessageTypeC2S.GET_REPLAY, self.stats_handler.handle_get_replay)
-        
-        print("=" * 60)
-        print("✓ All message handlers registered:")
-        print("  📝 0x0001 REGISTER - User registration")
-        print("  🔐 0x0002 LOGIN - User login")
-        print("  � 0x0003 GET_ONLINE_USERS - Get online users")
-        print("  �🔍 0x0010 FIND_MATCH - Matchmaking")
-        print("  ❌ 0x0011 CANCEL_FIND_MATCH - Cancel matchmaking")
-        print("  🤖 0x0012 FIND_AI_MATCH - AI game")
-        print("  ♟️  0x0020 MAKE_MOVE - Make a move")
-        print("  🏳️  0x0021 RESIGN - Resign game")
-        print("  🤝 0x0022 OFFER_DRAW - Offer draw")
-        print("  ✅ 0x0023 ACCEPT_DRAW - Accept draw")
-        print("  ❌ 0x0024 DECLINE_DRAW - Decline draw")
-        print("  📊 0x0030 GET_STATS - Get user stats")
-        print("  📜 0x0031 GET_HISTORY - Get game history")
-        print("  🎬 0x0032 GET_REPLAY - Get game replay")
-        print("=" * 60)
     
     def start(self):
         """Start the server"""
@@ -141,7 +126,7 @@ def main():
         sys.exit(1)
     
     # Create and start server
-    server = ChessGameServer(port=8765)
+    server = ChessGameServer(port=SERVER_PORT)
     
     if server.start():
         # Run event loop

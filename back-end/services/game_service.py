@@ -78,7 +78,6 @@ def get_game(game_id):
         return None
     
     except Exception as e:
-        print(f"Error getting game: {e}")
         return None
 
 
@@ -144,9 +143,12 @@ def end_game(game_id, result, status='completed'):
         
         if update_result.modified_count > 0:
             # Cập nhật ELO của người chơi
+            # Không cập nhật ELO nếu là draw by agreement (status='draw')
             game = get_game(game_id)
             if game and not game['is_ai_game']:
-                update_player_elo(game, result)
+                # Chỉ cập nhật ELO nếu không phải draw by agreement
+                if status != 'draw':
+                    update_player_elo(game, result)
             
             return {'success': True, 'message': 'Game ended successfully'}
         else:
@@ -206,12 +208,9 @@ def update_player_elo(game, result):
             {'_id': ObjectId(black_id)},
             {'$set': {'elo': round(new_black_elo)}}
         )
-        
-        print(f"✓ ELO updated: {white_user['username']} {white_elo}->{round(new_white_elo)}, "
-              f"{black_user['username']} {black_elo}->{round(new_black_elo)}")
     
     except Exception as e:
-        print(f"Error updating ELO: {e}")
+        pass
 
 
 def get_user_game_history(user_id, limit=10):
@@ -276,7 +275,6 @@ def get_user_game_history(user_id, limit=10):
         return result
     
     except Exception as e:
-        print(f"Error getting game history: {e}")
         return []
 
 
@@ -337,7 +335,6 @@ def get_user_stats(user_id):
         }
     
     except Exception as e:
-        print(f"Error getting user stats: {e}")
         return None
 
 
@@ -366,7 +363,6 @@ def validate_move(game_id, move):
             
             if chess_move in board.legal_moves:
                 board.push(chess_move)
-                print(f"   ✓ Move valid, new FEN: {board.fen()}")
                 
                 # Kiểm tra game over
                 game_over = board.is_game_over()
@@ -378,10 +374,8 @@ def validate_move(game_id, move):
                         # Nếu board.turn == WHITE → trắng bị checkmate → đen thắng
                         # Nếu board.turn == BLACK → đen bị checkmate → trắng thắng
                         result = 'black_win' if board.turn == chess.WHITE else 'white_win'
-                        print(f"   ♔ Checkmate! board.turn={board.turn}, result={result}")
                     elif board.is_stalemate() or board.is_insufficient_material():
                         result = 'draw'
-                        print(f"   ⚖ Draw: stalemate={board.is_stalemate()}, insufficient={board.is_insufficient_material()}")
                 
                 return {
                     'valid': True,
@@ -391,16 +385,12 @@ def validate_move(game_id, move):
                     'in_check': board.is_check()
                 }
             else:
-                print(f"   ✗ Move not in legal moves")
-                print(f"   Legal moves: {[m.uci() for m in board.legal_moves]}")
                 return {'valid': False, 'reason': 'Illegal move'}
         
         except ValueError as e:
-            print(f"   ✗ ValueError parsing move: {e}")
             return {'valid': False, 'reason': f'Invalid move format: {str(e)}'}
     
     except Exception as e:
-        print(f"Error validating move: {e}")
         return {'valid': False, 'reason': str(e)}
 
 
