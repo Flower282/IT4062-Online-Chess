@@ -126,7 +126,6 @@ def get_user_by_username(username):
         return None
     
     except Exception as e:
-        print(f"Error getting user: {e}")
         return None
 
 
@@ -157,5 +156,5 @@ def get_all_users():
         return users
     
     except Exception as e:
-        print(f"Error getting users: {e}")
+
         return []

@@ -66,32 +66,3 @@ class StatsHandler:
                 'games': [],
                 'error': 'Not authenticated'
             })
-    
-    def handle_get_replay(self, client_fd: int, data: dict):
-        """
-        0x0032 - GET_REPLAY: Hệ thống Lịch sử: Yêu cầu dữ liệu xem lại (replay) 1 ván cụ thể
-        """
-        game_id = data.get('game_id', '')
-        
-        print(f"🎬 Replay request from fd={client_fd} for game {game_id}")
-        
-        # Get game from database
-        game = get_game(game_id)
-        
-        if game:
-            # Generate PGN
-            pgn = get_game_pgn(game_id)
-            
-            # Send replay data (0x1302 - REPLAY_DATA)
-            self.network.send_to_client(client_fd, self.MessageTypeS2C.REPLAY_DATA, {
-                'game_id': game_id,
-                'pgn': pgn if pgn else '',
-                'moves': game['moves'],
-                'white_player': game['white_username'],
-                'black_player': game['black_username'],
-                'result': game['result']
-            })
-        else:
-            self.network.send_to_client(client_fd, self.MessageTypeS2C.REPLAY_DATA, {
-                'error': 'Game not found'
-            })

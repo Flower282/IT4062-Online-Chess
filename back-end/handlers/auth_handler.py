@@ -108,6 +108,7 @@ class AuthHandler:
             
             # Add to list
             online_users.append({
+                'user_id': session.get('user_id'),
                 'username': username,
                 'fullname': session.get('fullname', username),
                 'rating': session.get('rating', 1200),

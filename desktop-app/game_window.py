@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 from chess_board_widget import ChessBoardWidget
-from network_client import MessageTypeS2C
+from network_client import MessageTypeS2C, MessageTypeC2S
 import chess
 
 
@@ -352,7 +352,6 @@ class GameWindow(QWidget):
             }
             QPushButton:hover {
                 background-color: #f57c00;
-                transform: scale(1.05);
             }
             QPushButton:pressed {
                 background-color: #e65100;
@@ -556,14 +555,10 @@ class GameWindow(QWidget):
         Handle game over
         Receives MSG_S2C_GAME_OVER (0x1202)
         """
-        print(f"🎮 Game Over - data: {data}")
-        
         # Sử dụng outcome từ backend (you_win, you_loss, draw)
         outcome = data.get('outcome', '')
         message_text = data.get('message', '')
         result = data.get('result', 'unknown')
-        
-        print(f"   outcome={outcome}, result={result}, message={message_text}")
         
         # Xác định title và message dựa trên outcome
         if outcome == 'you_win':
@@ -689,11 +684,15 @@ class GameWindow(QWidget):
         reply = msg_box.exec()
         
         if reply == QMessageBox.StandardButton.Yes:
-            # Send MSG_C2S_ACCEPT_DRAW (0x0023)
-            self.network.accept_draw()
+            # Send MSG_C2S_ACCEPT_DRAW (0x0023) with game_id
+            self.network.send_message(MessageTypeC2S.ACCEPT_DRAW, {
+                'game_id': self.game_id
+            })
         else:
-            # Send MSG_C2S_DECLINE_DRAW (0x0024)
-            self.network.decline_draw()
+            # Send MSG_C2S_DECLINE_DRAW (0x0024) with game_id
+            self.network.send_message(MessageTypeC2S.DECLINE_DRAW, {
+                'game_id': self.game_id
+            })
     
     def handle_draw_offer_declined(self, data: dict):
         """

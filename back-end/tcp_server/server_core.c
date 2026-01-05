@@ -497,9 +497,11 @@ const char* get_message_type_name(uint16_t message_id) {
         case MSG_C2S_OFFER_DRAW: return "OFFER_DRAW";
         case MSG_C2S_ACCEPT_DRAW: return "ACCEPT_DRAW";
         case MSG_C2S_DECLINE_DRAW: return "DECLINE_DRAW";
+        case MSG_C2S_CHALLENGE: return "CHALLENGE";
+        case MSG_C2S_ACCEPT_CHALLENGE: return "ACCEPT_CHALLENGE";
+        case MSG_C2S_DECLINE_CHALLENGE: return "DECLINE_CHALLENGE";
         case MSG_C2S_GET_STATS: return "GET_STATS";
         case MSG_C2S_GET_HISTORY: return "GET_HISTORY";
-        case MSG_C2S_GET_REPLAY: return "GET_REPLAY";
         
         /* S2C */
         case MSG_S2C_REGISTER_RESULT: return "REGISTER_RESULT";
@@ -513,9 +515,11 @@ const char* get_message_type_name(uint16_t message_id) {
         case MSG_S2C_GAME_OVER: return "GAME_OVER";
         case MSG_S2C_DRAW_OFFER_RECEIVED: return "DRAW_OFFER_RECEIVED";
         case MSG_S2C_DRAW_OFFER_DECLINED: return "DRAW_OFFER_DECLINED";
+        case MSG_S2C_CHALLENGE_RECEIVED: return "CHALLENGE_RECEIVED";
+        case MSG_S2C_CHALLENGE_ACCEPTED: return "CHALLENGE_ACCEPTED";
+        case MSG_S2C_CHALLENGE_DECLINED: return "CHALLENGE_DECLINED";
         case MSG_S2C_STATS_RESPONSE: return "STATS_RESPONSE";
         case MSG_S2C_HISTORY_RESPONSE: return "HISTORY_RESPONSE";
-        case MSG_S2C_REPLAY_DATA: return "REPLAY_DATA";
         
         default: return "UNKNOWN";
     }
