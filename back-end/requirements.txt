@@ -11,10 +11,10 @@ PyJWT>=2.3.0
 python-chess>=1.9.0
 
 # Optional: AI/ML dependencies (uncomment if needed)
-# numpy
-# scikit-learn
-# scipy
-# pandas
+numpy
+scikit-learn
+scipy
+pandas
 
 # Optional: Stockfish wrapper (uncomment if needed)
-# stockfish>=3.17.0
+stockfish>=3.17.0
