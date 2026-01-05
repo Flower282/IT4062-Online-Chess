@@ -221,17 +221,37 @@ class GameHandler:
         timeout_games = []
         
         # Identify games to process (avoid modifying dict while iterating)
+        if int(current_time) % 5 == 0:
+             # print(f"Checking timeouts for {len(self.matchmaking.active_games)} games...")
+             pass
+
         for game_id, info in self.matchmaking.active_games.items():
+            # Handle AI games: only check timeout if it's HUMAN turn
             if info.get('is_ai_game'):
-                continue
+                game = get_game(game_id)
+                if not game: continue
                 
+                # Determine whose turn it is
+                # info['player_color'] is human color
+                # active_color = 'white' or 'black' from FEN
+                fen = game['fen']
+                board = chess.Board(fen)
+                turn_color = 'white' if board.turn == chess.WHITE else 'black'
+                
+                # If it's AI's turn, skip timeout check (AI moves instantly or we wait)
+                if turn_color != info.get('player_color'):
+                    continue
+            
             last_move_time = info.get('last_move_time')
             if not last_move_time:
                 # Initialize if missing (e.g. game just started)
                 info['last_move_time'] = current_time
                 continue
+            
+            elapsed = current_time - last_move_time
+            # print(f"Game {game_id}: elapsed {elapsed:.1f}s / {self.MOVE_TIMEOUT}s")
                 
-            if current_time - last_move_time > self.MOVE_TIMEOUT:
+            if elapsed > self.MOVE_TIMEOUT:
                 timeout_games.append((game_id, info))
         
         # Process timeouts
@@ -246,56 +266,26 @@ class GameHandler:
                     
                 fen = game['fen']
                 board = chess.Board(fen)
+
+                # Determine winner (the one who didn't timeout)
+                # If it was white's turn (timeout), black wins
+                win_result = 'black_win' if board.turn == chess.WHITE else 'white_win'
                 
-                # Determine whose turn it is
-                turn_color = 'white' if board.turn == chess.WHITE else 'black'
+                # End the game in DB with correct result
+                end_game(game_id, win_result, 'timeout')
                 
-                # Make random legal move
-                legal_moves = list(board.legal_moves)
-                if not legal_moves:
-                    continue
-                    
-                random_move = random.choice(legal_moves)
-                move_uci = random_move.uci()
+                # Broadcast game over message
+                self.win_handler.broadcast_game_over(game_id, win_result, "Timeout! Time expired.", info)
                 
-                print(f"Random move for {turn_color}: {move_uci}")
+                # CRITICAL: Remove game from active_games to stop processing it
+                if game_id in self.matchmaking.active_games:
+                    print(f"✓ Removed game {game_id} from active games (timeout)")
+                    del self.matchmaking.active_games[game_id]
                 
-                # Reuse handle_make_move logic effectively by simulating the call or calling core logic
-                # We need to broadcast to both.
-                
-                # Validate & Apply
-                validation = validate_move(game_id, move_uci)
-                if validation['valid']:
-                    update_game_state(game_id, move_uci, validation['fen'])
-                    info['last_move_time'] = time.time() # Reset timer
-                    
-                    # Broadcast update
-                    msg = {
-                        'game_id': game_id,
-                        'fen': validation['fen'],
-                        'last_move': move_uci,
-                        'turn': 'black' if 'w' in validation['fen'] else 'white',
-                        'in_check': validation.get('in_check', False),
-                        'game_over': validation['game_over'],
-                        'message': f'Time expired for {turn_color}. Random move made.'
-                    }
-                    
-                    white_fd = info.get('white_fd')
-                    black_fd = info.get('black_fd')
-                    
-                    if white_fd and white_fd != -1:
-                        self.network.send_to_client(white_fd, self.MessageTypeS2C.GAME_STATE_UPDATE, msg)
-                    if black_fd and black_fd != -1:
-                        self.network.send_to_client(black_fd, self.MessageTypeS2C.GAME_STATE_UPDATE, msg)
-                        
-                    # Handle Game Over
-                    if validation['game_over']:
-                        end_game(game_id, validation['result'], 'completed')
-                        reason = 'Checkmate' if 'win' in validation['result'] else 'Draw'
-                        self.win_handler.broadcast_game_over(game_id, validation['result'], reason, info)
-                        
             except Exception as e:
                 print(f"Error handling timeout for game {game_id}: {e}")
+                import traceback
+                traceback.print_exc()
     
     def handle_resign(self, client_fd: int, data: dict):
         """

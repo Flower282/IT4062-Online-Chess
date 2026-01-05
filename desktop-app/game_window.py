@@ -40,7 +40,15 @@ class GameWindow(QWidget):
         self.user_data = user_data
         self.is_disconnected = False
         self.is_resigned = False
+        self.is_resigned = False
         self.opponent_resigned = False
+        
+        # Timer variables
+        self.move_time_limit = 60  # 60 seconds per move
+        self.current_time_left = self.move_time_limit
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_timer)
+        self.timer.start(1000)  # Update every second
         
         # Store game_id for requests
         self.game_id = game_data.get('game_id', '')
@@ -225,6 +233,19 @@ class GameWindow(QWidget):
             background-color: #e3f2fd;
             border-radius: 8px;
         """)
+        # Timer label
+        self.timer_label = QLabel("Time: 60s")
+        self.timer_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        self.timer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.timer_label.setStyleSheet("""
+            color: #d32f2f; 
+            padding: 12px; 
+            background-color: #ffebee;
+            border-radius: 8px;
+            border: 1px solid #ffcdd2;
+        """)
+        layout.addWidget(self.timer_label)
+        
         layout.addWidget(self.status_label)
         
         # Chess board widget
@@ -475,6 +496,9 @@ class GameWindow(QWidget):
         
         # Update status
         self.status_label.setText("Waiting for server...")
+        
+        # Reset timer
+        self.reset_timer()
     
     def handle_game_state_update(self, data: dict):
         """
@@ -524,8 +548,53 @@ class GameWindow(QWidget):
                 border-radius: 8px;
             """)
         
+        
         # Note: Game over is handled separately by GAME_OVER message (0x1202)
         # not from GAME_STATE_UPDATE to ensure we receive outcome/message info
+        
+        # Reset timer on turn change
+        self.reset_timer()
+    
+    def update_timer(self):
+        """Update countdown timer"""
+        if self.current_time_left > 0:
+            self.current_time_left -= 1
+            self.timer_label.setText(f"Time: {self.current_time_left}s")
+            
+            # Visual warning when low time
+            if self.current_time_left <= 10:
+                self.timer_label.setStyleSheet("""
+                    color: white; 
+                    background-color: #d32f2f;
+                    padding: 12px; 
+                    border-radius: 8px;
+                    font-weight: bold;
+                """)
+            else:
+                self.timer_label.setStyleSheet("""
+                    color: #d32f2f; 
+                    padding: 12px; 
+                    background-color: #ffebee;
+                    border-radius: 8px;
+                    border: 1px solid #ffcdd2;
+                """)
+    
+    def reset_timer(self):
+        """Reset move timer"""
+        self.current_time_left = self.move_time_limit
+        self.timer_label.setText(f"Time: {self.current_time_left}s")
+        self.timer_label.setStyleSheet("""
+            color: #d32f2f; 
+            padding: 12px; 
+            background-color: #ffebee;
+            border-radius: 8px;
+            border: 1px solid #ffcdd2;
+        """)
+    
+    def closeEvent(self, event):
+        """Handle window close"""
+        self.timer.stop()
+        super().closeEvent(event)
     
     def handle_invalid_move(self, data: dict):
         """
