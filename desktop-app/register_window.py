@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from network_client import MessageTypeS2C
+from ui_utils import ResponsiveUI
 
 
 class RegisterWindow(QWidget):
