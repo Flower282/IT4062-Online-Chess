@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 from network_client import MessageTypeS2C
+from ui_utils import ResponsiveUI
 
 
 class LoginWindow(QWidget):
@@ -38,21 +39,27 @@ class LoginWindow(QWidget):
     def init_ui(self):
         """Initialize UI components - equivalent to React render()"""
         self.setWindowTitle("Chess Game - Login")
-        self.setMinimumSize(400, 500)
+        # Remove fixed size, let parent control it
         
         # Main layout - equivalent to React Container
         main_layout = QVBoxLayout()
         main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(
+            ResponsiveUI.scale_size(40),
+            ResponsiveUI.scale_size(20),
+            ResponsiveUI.scale_size(40),
+            ResponsiveUI.scale_size(20)
+        )
+        main_layout.setSpacing(ResponsiveUI.scale_size(20))
         
         # Header - equivalent to React Header component
         header = QLabel("Chess Game")
-        header.setFont(QFont("Arial", 24, QFont.Weight.Bold))
+        header.setFont(ResponsiveUI.get_font(size=24, bold=True))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(header)
         
         subtitle = QLabel("Login to play")
-        subtitle.setFont(QFont("Arial", 12))
+        subtitle.setFont(ResponsiveUI.get_font(size=12))
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet("color: #666;")
         main_layout.addWidget(subtitle)
@@ -60,70 +67,71 @@ class LoginWindow(QWidget):
         # Form container - equivalent to React Segment
         form_frame = QFrame()
         form_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        form_frame.setStyleSheet("""
-            QFrame {
+        form_frame.setMaximumWidth(ResponsiveUI.scale_size(450))
+        form_frame.setStyleSheet(f"""
+            QFrame {{
                 background-color: white;
                 border: 1px solid #ddd;
-                border-radius: 8px;
-                padding: 20px;
-            }
+                border-radius: {ResponsiveUI.scale_size(8)}px;
+                padding: {ResponsiveUI.scale_size(20)}px;
+            }}
         """)
         form_layout = QVBoxLayout(form_frame)
-        form_layout.setSpacing(15)
+        form_layout.setSpacing(ResponsiveUI.scale_size(15))
         
         # Username field - equivalent to React Form.Input
         username_label = QLabel("Username:")
-        username_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        username_label.setFont(ResponsiveUI.get_font(size=10, bold=True))
         form_layout.addWidget(username_label)
         
         self.username_input = QLineEdit()
         self.username_input.setPlaceholderText("Enter your username")
-        self.username_input.setMinimumHeight(35)
-        self.username_input.setStyleSheet("""
-            QLineEdit {
-                padding: 8px;
+        self.username_input.setMinimumHeight(ResponsiveUI.scale_size(35))
+        self.username_input.setStyleSheet(f"""
+            QLineEdit {{
+                padding: {ResponsiveUI.scale_size(8)}px;
                 border: 1px solid #ccc;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QLineEdit:focus {
+                border-radius: {ResponsiveUI.scale_size(4)}px;
+                font-size: 10pt;
+            }}
+            QLineEdit:focus {{
                 border: 2px solid #2185d0;
-            }
+            }}
         """)
         form_layout.addWidget(self.username_input)
         
         # Password field - equivalent to React Form.Input type="password"
         password_label = QLabel("Password:")
-        password_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        password_label.setFont(ResponsiveUI.get_font(size=10, bold=True))
         form_layout.addWidget(password_label)
         
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter your password")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setMinimumHeight(35)
-        self.password_input.setStyleSheet("""
-            QLineEdit {
-                padding: 8px;
+        self.password_input.setMinimumHeight(ResponsiveUI.scale_size(35))
+        self.password_input.setStyleSheet(f"""
+            QLineEdit {{
+                padding: {ResponsiveUI.scale_size(8)}px;
                 border: 1px solid #ccc;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QLineEdit:focus {
+                border-radius: {ResponsiveUI.scale_size(4)}px;
+                font-size: 10pt;
+            }}
+            QLineEdit:focus {{
                 border: 2px solid #2185d0;
-            }
+            }}
         """)
         form_layout.addWidget(self.password_input)
         
         # Error message label (hidden by default)
         self.error_label = QLabel()
-        self.error_label.setStyleSheet("""
-            QLabel {
+        self.error_label.setStyleSheet(f"""
+            QLabel {{
                 color: #db2828;
                 background-color: #fff6f6;
                 border: 1px solid #db2828;
-                border-radius: 4px;
-                padding: 10px;
-            }
+                border-radius: {ResponsiveUI.scale_size(4)}px;
+                padding: {ResponsiveUI.scale_size(10)}px;
+            }}
         """)
         self.error_label.setWordWrap(True)
         self.error_label.hide()
@@ -131,25 +139,25 @@ class LoginWindow(QWidget):
         
         # Login button - equivalent to React Button onClick={handleSubmit}
         self.login_button = QPushButton("Login")
-        self.login_button.setMinimumHeight(40)
-        self.login_button.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        self.login_button.setStyleSheet("""
-            QPushButton {
+        self.login_button.setMinimumHeight(ResponsiveUI.scale_size(40))
+        self.login_button.setFont(ResponsiveUI.get_font(size=12, bold=True))
+        self.login_button.setStyleSheet(f"""
+            QPushButton {{
                 background-color: #2185d0;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                padding: 10px;
-            }
-            QPushButton:hover {
+                border-radius: {ResponsiveUI.scale_size(4)}px;
+                padding: {ResponsiveUI.scale_size(10)}px;
+            }}
+            QPushButton:hover {{
                 background-color: #1678c2;
-            }
-            QPushButton:pressed {
+            }}
+            QPushButton:pressed {{
                 background-color: #1a69a4;
-            }
-            QPushButton:disabled {
+            }}
+            QPushButton:disabled {{
                 background-color: #ccc;
-            }
+            }}
         """)
         self.login_button.clicked.connect(self.handle_login)
         form_layout.addWidget(self.login_button)

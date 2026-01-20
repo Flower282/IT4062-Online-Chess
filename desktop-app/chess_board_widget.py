@@ -53,7 +53,9 @@ class ChessBoardWidget(QWidget):
                 
                 # Create button for square
                 button = QPushButton()
-                button.setFixedSize(60, 60)
+                # Use size policy instead of fixed size for dynamic scaling
+                button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+                button.setMinimumSize(30, 30)  # Reduced minimum for smaller window (960x600)
                 button.setProperty('square', square)
                 button.clicked.connect(lambda checked, sq=square: self.on_square_clicked(sq))
                 
@@ -67,6 +69,8 @@ class ChessBoardWidget(QWidget):
         # Add rank/file labels (optional - can be added later)
         
         self.setLayout(self.grid)
+        # Set size policy for the widget itself
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.update_board()
     
     def set_square_color(self, button, is_light, is_selected=False, is_legal=False):
@@ -134,7 +138,7 @@ class ChessBoardWidget(QWidget):
         return symbols.get(piece.symbol(), '')
     
     def set_piece_image(self, button, piece):
-        """Set piece image on button"""
+        """Set piece image on button - dynamically scale based on button size"""
         # Map piece to file name
         color_prefix = 'w' if piece.color == chess.WHITE else 'b'
         piece_type = piece.symbol().lower()
@@ -146,10 +150,14 @@ class ChessBoardWidget(QWidget):
         
         if os.path.exists(image_path):
             pixmap = QPixmap(image_path)
-            scaled_pixmap = pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio, 
+            # Scale based on button size (use 80% of button size for padding)
+            button_size = min(button.width(), button.height())
+            icon_size = max(int(button_size * 0.8), 30)  # At least 30px
+            scaled_pixmap = pixmap.scaled(icon_size, icon_size, 
+                                         Qt.AspectRatioMode.KeepAspectRatio, 
                                          Qt.TransformationMode.SmoothTransformation)
             button.setIcon(QIcon(scaled_pixmap))
-            button.setIconSize(QSize(50, 50))
+            button.setIconSize(QSize(icon_size, icon_size))
             button.setText("")  # Clear text when using icon
         else:
             # Fallback to Unicode if image not found
@@ -167,6 +175,17 @@ class ChessBoardWidget(QWidget):
         """Toggle between images and Unicode"""
         self.use_images = not self.use_images
         self.update_board()
+    
+    def resizeEvent(self, event):
+        """Handle widget resize - update piece images to match new size"""
+        super().resizeEvent(event)
+        # Update board to rescale piece images
+        self.update_board()
+    
+    def sizeHint(self):
+        """Provide preferred size for the chess board"""
+        # Suggest a square size for 960x600 window (480x480)
+        return QSize(480, 480)
     
     def on_square_clicked(self, square):
         """Handle square click"""

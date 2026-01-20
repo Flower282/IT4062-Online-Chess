@@ -6,11 +6,12 @@ Replaces React ChessBoard.jsx component
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QTextEdit, QFrame, QMessageBox,
-                            QDialog, QDialogButtonBox, QComboBox)
+                            QDialog, QDialogButtonBox, QComboBox, QSizePolicy)
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 from chess_board_widget import ChessBoardWidget
 from network_client import MessageTypeS2C, MessageTypeC2S
+from ui_utils import ResponsiveUI, CenteredMessageBox
 import chess
 
 
@@ -72,26 +73,29 @@ class GameWindow(QWidget):
         self.setup_network_handlers()
     
     def init_ui(self):
-        """Initialize game UI"""
+        """Initialize game UI - scaled for 960x600 window"""
         self.setWindowTitle("Chess Game")
-        self.setFixedSize(1280, 853)
+        # Don't set fixed size - inherit from parent (main window 960x600)
         
-        # Main horizontal layout
+        # Main horizontal layout - reduced spacing for smaller window
         main_layout = QHBoxLayout()
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(8)  # Reduced from 15 to 8
+        main_layout.setContentsMargins(8, 8, 8, 8)  # Reduced from 15 to 8
         
-        # Left side - Move history and info (25%)
+        # Left side - Move history and info (25% of width)
         left_panel = self.create_left_panel()
-        main_layout.addWidget(left_panel, 25)
+        left_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        main_layout.addWidget(left_panel, 2)  # stretch factor 2
         
-        # Center - Chess board (50%)
+        # Center - Chess board (50% of width)
         board_container = self.create_board_container()
-        main_layout.addWidget(board_container, 50)
+        board_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        main_layout.addWidget(board_container, 5)  # stretch factor 5
         
-        # Right side - Controls (25%)
+        # Right side - Controls (25% of width)
         right_panel = self.create_right_panel()
-        main_layout.addWidget(right_panel, 25)
+        right_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        main_layout.addWidget(right_panel, 2)  # stretch factor 2
         
         self.setLayout(main_layout)
         self.setStyleSheet("""
@@ -100,6 +104,24 @@ class GameWindow(QWidget):
                     stop:0 #e3f2fd, stop:1 #f5f5f5);
             }
         """)
+    
+    def center_dialog(self, dialog):
+        """Center a dialog on this window"""
+        # Ensure dialog has been sized
+        dialog.adjustSize()
+        
+        # Get parent window position and size
+        parent_x = self.x()
+        parent_y = self.y()
+        parent_width = self.width()
+        parent_height = self.height()
+        
+        # Calculate center position
+        x = parent_x + (parent_width - dialog.width()) // 2
+        y = parent_y + (parent_height - dialog.height()) // 2
+        
+        # Move dialog to center
+        dialog.move(x, y)
     
     def create_left_panel(self):
         """Create left panel with move history"""
@@ -115,88 +137,88 @@ class GameWindow(QWidget):
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setSpacing(10)
+        layout.setSpacing(6)  # Reduced from 10 to 6
         
-        # Title
+        # Title - smaller font
         title = QLabel("Move History")
-        title.setFont(QFont("Arial", 13, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 9, QFont.Weight.Bold))  # Reduced from 13 to 9
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #1976d2; padding: 5px;")
+        title.setStyleSheet("color: #1976d2; padding: 3px;")  # Reduced padding
         layout.addWidget(title)
         
-        # Opponent info
+        # Opponent info - reduced padding and font sizes
         opponent_frame = QFrame()
         opponent_frame.setStyleSheet("""
             background-color: #424242; 
-            border-radius: 8px; 
-            padding: 12px;
-            border: 2px solid #616161;
+            border-radius: 6px;
+            padding: 6px;
+            border: 1px solid #616161;
         """)
         opponent_layout = QVBoxLayout(opponent_frame)
-        opponent_layout.setSpacing(5)
+        opponent_layout.setSpacing(3)  # Reduced from 5 to 3
         
         opponent_icon = QLabel("Opponent")
-        opponent_icon.setFont(QFont("Arial", 9))
+        opponent_icon.setFont(QFont("Arial", 7))  # Reduced from 9 to 7
         opponent_icon.setStyleSheet("color: #bdbdbd;")
         opponent_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         opponent_layout.addWidget(opponent_icon)
         
         self.opponent_label = QLabel(self.opponent_name)
-        self.opponent_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.opponent_label.setFont(QFont("Arial", 8, QFont.Weight.Bold))  # Reduced from 11 to 8
         self.opponent_label.setStyleSheet("color: white;")
         self.opponent_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         opponent_layout.addWidget(self.opponent_label)
         
         opponent_color = 'Black' if self.my_color == 'white' else 'White'
         self.opponent_color_label = QLabel(opponent_color)
-        self.opponent_color_label.setFont(QFont("Arial", 10))
+        self.opponent_color_label.setFont(QFont("Arial", 7))  # Reduced from 10 to 7
         self.opponent_color_label.setStyleSheet("color: #90caf9;")
         self.opponent_color_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         opponent_layout.addWidget(self.opponent_color_label)
         
         layout.addWidget(opponent_frame)
         
-        # Move history text area
+        # Move history text area - smaller font and padding
         self.move_history = QTextEdit()
         self.move_history.setReadOnly(True)
         self.move_history.setStyleSheet("""
             QTextEdit {
                 background-color: #fafafa;
-                border: 2px solid #e0e0e0;
-                border-radius: 8px;
-                padding: 10px;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                padding: 6px;
                 font-family: 'Courier New', monospace;
-                font-size: 11px;
+                font-size: 8px;
             }
         """)
         layout.addWidget(self.move_history, 1)
         
-        # Player info (you)
+        # Player info (you) - reduced padding and font sizes
         player_frame = QFrame()
         player_frame.setStyleSheet("""
             background-color: #1976d2; 
-            border-radius: 8px; 
-            padding: 12px;
-            border: 2px solid #1565c0;
+            border-radius: 6px;
+            padding: 6px;
+            border: 1px solid #1565c0;
         """)
         player_layout = QVBoxLayout(player_frame)
-        player_layout.setSpacing(5)
+        player_layout.setSpacing(3)  # Reduced from 5 to 3
         
         player_icon = QLabel("You")
-        player_icon.setFont(QFont("Arial", 9))
+        player_icon.setFont(QFont("Arial", 7))  # Reduced from 9 to 7
         player_icon.setStyleSheet("color: #bbdefb;")
         player_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         player_layout.addWidget(player_icon)
         
         self.player_label = QLabel(self.user_data.get('username', 'You'))
-        self.player_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.player_label.setFont(QFont("Arial", 8, QFont.Weight.Bold))  # Reduced from 11 to 8
         self.player_label.setStyleSheet("color: white;")
         self.player_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         player_layout.addWidget(self.player_label)
         
         player_color = f"{self.my_color.capitalize()}"
         self.player_color_label = QLabel(player_color)
-        self.player_color_label.setFont(QFont("Arial", 10))
+        self.player_color_label.setFont(QFont("Arial", 7))  # Reduced from 10 to 7
         self.player_color_label.setStyleSheet("color: #e3f2fd;")
         self.player_color_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         player_layout.addWidget(self.player_color_label)
@@ -206,42 +228,42 @@ class GameWindow(QWidget):
         return panel
     
     def create_board_container(self):
-        """Create chess board container"""
+        """Create chess board container - scaled for 960x600"""
         container = QFrame()
         container.setFrameStyle(QFrame.Shape.StyledPanel)
         container.setStyleSheet("""
             QFrame {
                 background-color: white;
-                border: 3px solid #424242;
-                border-radius: 12px;
-                padding: 15px;
+                border: 2px solid #424242;
+                border-radius: 8px;
+                padding: 8px;
             }
         """)
         
         layout = QVBoxLayout(container)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setSpacing(10)
+        layout.setSpacing(5)  # Reduced from 10 to 5
         
-        # Game status label
+        # Game status label - smaller font and padding
         initial_status = "Your turn" if self.my_color == 'white' else "Opponent's turn"
         self.status_label = QLabel(initial_status)
-        self.status_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        self.status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))  # Reduced from 16 to 10
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setStyleSheet("""
             color: #1976d2; 
-            padding: 12px; 
+            padding: 6px;
             background-color: #e3f2fd;
-            border-radius: 8px;
+            border-radius: 6px;
         """)
-        # Timer label
+        # Timer label - smaller font and padding
         self.timer_label = QLabel("Time: 60s")
-        self.timer_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        self.timer_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))  # Reduced from 16 to 10
         self.timer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.timer_label.setStyleSheet("""
             color: #d32f2f; 
-            padding: 12px; 
+            padding: 6px;
             background-color: #ffebee;
-            border-radius: 8px;
+            border-radius: 6px;
             border: 1px solid #ffcdd2;
         """)
         layout.addWidget(self.timer_label)
@@ -261,41 +283,41 @@ class GameWindow(QWidget):
         return container
     
     def create_right_panel(self):
-        """Create right panel with game controls"""
+        """Create right panel with game controls - scaled for 960x600"""
         panel = QFrame()
         panel.setFrameStyle(QFrame.Shape.StyledPanel)
         panel.setStyleSheet("""
             QFrame {
                 background-color: white;
-                border: 2px solid #e0e0e0;
-                border-radius: 12px;
-                padding: 12px;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 6px;
             }
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setSpacing(12)
+        layout.setSpacing(6)  # Reduced from 12 to 6
         
-        # Title
+        # Title - smaller font
         title = QLabel("Game Controls")
-        title.setFont(QFont("Arial", 13, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 9, QFont.Weight.Bold))  # Reduced from 13 to 9
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #1976d2; padding: 5px;")
+        title.setStyleSheet("color: #1976d2; padding: 3px;")  # Reduced padding
         layout.addWidget(title)
         
-        # Piece style selector
+        # Piece style selector - reduced padding
         style_frame = QFrame()
         style_frame.setStyleSheet("""
             background-color: #f5f5f5; 
             border: 1px solid #e0e0e0;
-            border-radius: 8px; 
-            padding: 10px;
+            border-radius: 6px;
+            padding: 6px;
         """)
         style_layout = QVBoxLayout(style_frame)
-        style_layout.setSpacing(8)
+        style_layout.setSpacing(4)  # Reduced from 8 to 4
         
         style_label = QLabel("Kiểu quân cờ:")
-        style_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        style_label.setFont(QFont("Arial", 7, QFont.Weight.Bold))  # Reduced from 10 to 7
         style_label.setStyleSheet("color: #424242;")
         style_layout.addWidget(style_label)
         
@@ -305,44 +327,46 @@ class GameWindow(QWidget):
             'newspaper', 'ocean', '8bit'
         ])
         self.piece_style_combo.setCurrentText('neo')
-        self.piece_style_combo.setFont(QFont("Arial", 10))
-        self.piece_style_combo.setMaxVisibleItems(7)  # Limit visible items to prevent large dropdown
+        self.piece_style_combo.setFont(QFont("Arial", 7))  # Reduced from 10 to 7
+        self.piece_style_combo.setMaxVisibleItems(7)
         self.piece_style_combo.view().setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.piece_style_combo.setStyleSheet("""
             QComboBox {
                 background-color: white;
-                border: 2px solid #2196f3;
-                border-radius: 6px;
-                padding: 8px;
+                border: 1px solid #2196f3;
+                border-radius: 4px;
+                padding: 4px;
                 color: #424242;
-                min-height: 25px;
+                min-height: 18px;
+                font-size: 7pt;
             }
             QComboBox:hover {
                 border-color: #1976d2;
             }
             QComboBox::drop-down {
                 border: none;
-                width: 20px;
+                width: 15px;
             }
             QComboBox::down-arrow {
                 image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 5px solid #424242;
-                margin-right: 5px;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid #424242;
+                margin-right: 3px;
             }
             QComboBox QAbstractItemView {
                 background-color: white;
-                border: 2px solid #2196f3;
-                border-radius: 6px;
+                border: 1px solid #2196f3;
+                border-radius: 4px;
                 selection-background-color: #2196f3;
                 selection-color: white;
                 padding: 5px;
                 outline: none;
             }
             QComboBox QAbstractItemView::item {
-                min-height: 30px;
-                padding: 5px 10px;
+                min-height: 20px;
+                padding: 3px 6px;
+                font-size: 7pt;
             }
             QComboBox QAbstractItemView::item:hover {
                 background-color: #e3f2fd;
@@ -359,17 +383,17 @@ class GameWindow(QWidget):
         
         layout.addWidget(style_frame)
         
-        # Offer Draw button - sends MSG_C2S_OFFER_DRAW (0x0022)
+        # Offer Draw button - smaller size
         self.draw_button = QPushButton("Offer Draw")
-        self.draw_button.setMinimumHeight(45)
-        self.draw_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.draw_button.setMinimumHeight(28)  # Reduced from 45 to 28
+        self.draw_button.setFont(QFont("Arial", 8, QFont.Weight.Bold))  # Reduced from 11 to 8
         self.draw_button.setStyleSheet("""
             QPushButton {
                 background-color: #ff9800;
                 color: white;
                 border: none;
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 6px;
+                padding: 6px;
             }
             QPushButton:hover {
                 background-color: #f57c00;
@@ -381,17 +405,17 @@ class GameWindow(QWidget):
         self.draw_button.clicked.connect(self.on_offer_draw)
         layout.addWidget(self.draw_button)
         
-        # Resign button - sends MSG_C2S_RESIGN (0x0021)
+        # Resign button - smaller size
         self.resign_button = QPushButton("Resign")
-        self.resign_button.setMinimumHeight(45)
-        self.resign_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.resign_button.setMinimumHeight(28)  # Reduced from 45 to 28
+        self.resign_button.setFont(QFont("Arial", 8, QFont.Weight.Bold))  # Reduced from 11 to 8
         self.resign_button.setStyleSheet("""
             QPushButton {
                 background-color: #f44336;
                 color: white;
                 border: none;
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 6px;
+                padding: 6px;
             }
             QPushButton:hover {
                 background-color: #d32f2f;
@@ -403,24 +427,24 @@ class GameWindow(QWidget):
         self.resign_button.clicked.connect(self.on_resign)
         layout.addWidget(self.resign_button)
         
-        # Game info
+        # Game info - smaller padding
         info_frame = QFrame()
         info_frame.setStyleSheet("""
             background-color: #f5f5f5; 
             border: 1px solid #e0e0e0;
-            border-radius: 8px; 
-            padding: 12px;
+            border-radius: 6px;
+            padding: 6px;
         """)
         info_layout = QVBoxLayout(info_frame)
-        info_layout.setSpacing(8)
+        info_layout.setSpacing(4)  # Reduced from 8 to 4
         
         info_title = QLabel("Game Info")
-        info_title.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        info_title.setFont(QFont("Arial", 7, QFont.Weight.Bold))  # Reduced from 10 to 7
         info_title.setStyleSheet("color: #424242;")
         info_layout.addWidget(info_title)
         
         game_id_label = QLabel(f"ID: {self.game_data.get('game_id', 'N/A')}")
-        game_id_label.setFont(QFont("Courier New", 9))
+        game_id_label.setFont(QFont("Courier New", 6))  # Reduced from 9 to 6
         game_id_label.setStyleSheet("color: #757575;")
         info_layout.addWidget(game_id_label)
         
@@ -428,17 +452,17 @@ class GameWindow(QWidget):
         
         layout.addStretch()
         
-        # Quit button
+        # Quit button - smaller size
         self.quit_button = QPushButton("Back to Lobby")
-        self.quit_button.setMinimumHeight(45)
-        self.quit_button.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.quit_button.setMinimumHeight(28)  # Reduced from 45 to 28
+        self.quit_button.setFont(QFont("Arial", 8, QFont.Weight.Bold))  # Reduced from 11 to 8
         self.quit_button.setStyleSheet("""
             QPushButton {
                 background-color: #757575;
                 color: white;
                 border: none;
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 6px;
+                padding: 6px;
             }
             QPushButton:hover {
                 background-color: #616161;
@@ -522,19 +546,19 @@ class GameWindow(QWidget):
             self.status_label.setText("Your turn")
             self.status_label.setStyleSheet("""
                 color: white; 
-                padding: 12px; 
+                padding: 6px;
                 font-weight: bold;
                 background-color: #4caf50;
-                border-radius: 8px;
+                border-radius: 6px;
             """)
         else:
             self.status_label.setText("Opponent's turn")
             self.status_label.setStyleSheet("""
                 color: white; 
-                padding: 12px; 
+                padding: 6px;
                 font-weight: bold;
                 background-color: #ff9800;
-                border-radius: 8px;
+                border-radius: 6px;
             """)
         
         # Check for check
@@ -542,10 +566,10 @@ class GameWindow(QWidget):
             self.status_label.setText(self.status_label.text() + " CHECK!")
             self.status_label.setStyleSheet("""
                 color: white; 
-                padding: 12px; 
+                padding: 6px;
                 font-weight: bold;
                 background-color: #f44336;
-                border-radius: 8px;
+                border-radius: 6px;
             """)
         
         
@@ -566,16 +590,16 @@ class GameWindow(QWidget):
                 self.timer_label.setStyleSheet("""
                     color: white; 
                     background-color: #d32f2f;
-                    padding: 12px; 
-                    border-radius: 8px;
+                    padding: 6px;
+                    border-radius: 6px;
                     font-weight: bold;
                 """)
             else:
                 self.timer_label.setStyleSheet("""
                     color: #d32f2f; 
-                    padding: 12px; 
+                    padding: 6px;
                     background-color: #ffebee;
-                    border-radius: 8px;
+                    border-radius: 6px;
                     border: 1px solid #ffcdd2;
                 """)
     
@@ -585,9 +609,9 @@ class GameWindow(QWidget):
         self.timer_label.setText(f"Time: {self.current_time_left}s")
         self.timer_label.setStyleSheet("""
             color: #d32f2f; 
-            padding: 12px; 
+            padding: 6px;
             background-color: #ffebee;
-            border-radius: 8px;
+            border-radius: 6px;
             border: 1px solid #ffcdd2;
         """)
     
@@ -606,11 +630,11 @@ class GameWindow(QWidget):
         msg_box.setIcon(QMessageBox.Icon.Warning)
         msg_box.setWindowTitle("Invalid Move")
         msg_box.setText(error)
-        msg_box.setStyleSheet("""
-            QLabel { min-width: 300px; padding: 15px; font-size: 12px; }
-            QPushButton { min-width: 80px; min-height: 30px; }
-        """)
-        msg_box.exec()
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg_box.setStyleSheet(ResponsiveUI.get_messagebox_stylesheet())
+        msg_box.setWindowModality(Qt.WindowModality.WindowModal)
+        # Use CenteredMessageBox for Linux-compatible centering
+        CenteredMessageBox.show_and_exec(msg_box, self)
         
         # Reset status
         board = chess.Board(self.chess_board.get_fen())
@@ -676,25 +700,10 @@ class GameWindow(QWidget):
         font = QFont()
         font.setPointSize(12)
         msg_box.setFont(font)
-        msg_box.setStyleSheet("""
-            QMessageBox {
-                min-width: 400px;
-                min-height: 200px;
-            }
-            QLabel {
-                min-width: 350px;
-                min-height: 80px;
-                padding: 20px;
-                font-size: 14px;
-            }
-            QPushButton {
-                min-width: 100px;
-                min-height: 35px;
-                font-size: 12px;
-                padding: 5px 15px;
-            }
-        """)
-        msg_box.exec()
+        msg_box.setStyleSheet(ResponsiveUI.get_messagebox_stylesheet())
+        msg_box.setWindowModality(Qt.WindowModality.WindowModal)
+        # Use CenteredMessageBox for Linux-compatible centering
+        CenteredMessageBox.show_and_exec(msg_box, self)
         
         # Return to lobby
         self.quit_game.emit()
@@ -707,34 +716,24 @@ class GameWindow(QWidget):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Offer Draw")
         msg_box.setText("Do you want to offer a draw to your opponent?")
+        msg_box.setIcon(QMessageBox.Icon.Question)
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        msg_box.setStyleSheet("""
-            QMessageBox {
-                min-width: 400px;
-            }
-            QLabel {
-                min-width: 350px;
-                padding: 15px;
-                font-size: 13px;
-            }
-            QPushButton {
-                min-width: 90px;
-                min-height: 32px;
-                font-size: 12px;
-            }
-        """)
-        reply = msg_box.exec()
+        msg_box.setStyleSheet(ResponsiveUI.get_messagebox_stylesheet())
+        msg_box.setWindowModality(Qt.WindowModality.WindowModal)
+        # Use CenteredMessageBox for Linux-compatible centering
+        reply = CenteredMessageBox.show_and_exec(msg_box, self)
         
         if reply == QMessageBox.StandardButton.Yes:
             self.network.offer_draw(self.game_id)
             info_box = QMessageBox(self)
             info_box.setWindowTitle("Draw Offer")
             info_box.setText("Draw offer sent to opponent.")
-            info_box.setStyleSheet("""
-                QLabel { min-width: 300px; padding: 15px; font-size: 12px; }
-                QPushButton { min-width: 80px; min-height: 30px; }
-            """)
-            info_box.exec()
+            info_box.setIcon(QMessageBox.Icon.Information)
+            info_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            info_box.setStyleSheet(ResponsiveUI.get_messagebox_stylesheet())
+            info_box.setWindowModality(Qt.WindowModality.WindowModal)
+            # Use CenteredMessageBox for Linux-compatible centering
+            CenteredMessageBox.show_and_exec(info_box, self)
     
     def handle_draw_offer_received(self, data: dict):
         """
@@ -744,13 +743,12 @@ class GameWindow(QWidget):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Draw Offer")
         msg_box.setText("Your opponent offers a draw. Do you accept?")
+        msg_box.setIcon(QMessageBox.Icon.Question)
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        msg_box.setStyleSheet("""
-            QMessageBox { min-width: 400px; }
-            QLabel { min-width: 350px; padding: 15px; font-size: 13px; }
-            QPushButton { min-width: 90px; min-height: 32px; font-size: 12px; }
-        """)
-        reply = msg_box.exec()
+        msg_box.setStyleSheet(ResponsiveUI.get_messagebox_stylesheet())
+        msg_box.setWindowModality(Qt.WindowModality.WindowModal)
+        # Use CenteredMessageBox for Linux-compatible centering
+        reply = CenteredMessageBox.show_and_exec(msg_box, self)
         
         if reply == QMessageBox.StandardButton.Yes:
             # Send MSG_C2S_ACCEPT_DRAW (0x0023) with game_id
@@ -771,11 +769,12 @@ class GameWindow(QWidget):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Draw Declined")
         msg_box.setText("Your opponent declined the draw offer.")
-        msg_box.setStyleSheet("""
-            QLabel { min-width: 300px; padding: 15px; font-size: 12px; }
-            QPushButton { min-width: 80px; min-height: 30px; }
-        """)
-        msg_box.exec()
+        msg_box.setIcon(QMessageBox.Icon.Information)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg_box.setStyleSheet(ResponsiveUI.get_messagebox_stylesheet())
+        msg_box.setWindowModality(Qt.WindowModality.WindowModal)
+        # Use CenteredMessageBox for Linux-compatible centering
+        CenteredMessageBox.show_and_exec(msg_box, self)
     
     def on_resign(self):
         """
@@ -785,13 +784,30 @@ class GameWindow(QWidget):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Resign")
         msg_box.setText("Are you sure you want to resign?")
+        msg_box.setIcon(QMessageBox.Icon.Warning)
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        msg_box.setStyleSheet("""
-            QMessageBox { min-width: 400px; }
-            QLabel { min-width: 300px; padding: 15px; font-size: 13px; }
-            QPushButton { min-width: 90px; min-height: 32px; font-size: 12px; }
-        """)
-        reply = msg_box.exec()
+        msg_box.setStyleSheet(ResponsiveUI.get_messagebox_stylesheet())
+        msg_box.setWindowModality(Qt.WindowModality.WindowModal)
+        # Use CenteredMessageBox for Linux-compatible centering
+        reply = CenteredMessageBox.show_and_exec(msg_box, self)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.network.resign(self.game_id)
+            self.is_resigned = True
+    
+    def confirm_quit(self):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Resign")
+        msg_box.setText("Are you sure you want to resign?")
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setStyleSheet(ResponsiveUI.get_messagebox_stylesheet())
+        msg_box.setWindowModality(Qt.WindowModality.WindowModal)
+        # Use CenteredMessageBox for Linux-compatible centering
+        
+                
+                     
+        reply = CenteredMessageBox.show_and_exec(msg_box, self)
         
         if reply == QMessageBox.StandardButton.Yes:
             self.network.resign(self.game_id)
@@ -803,12 +819,10 @@ class GameWindow(QWidget):
         msg_box.setWindowTitle("Quit Game")
         msg_box.setText("Are you sure you want to quit? The game will continue.")
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        msg_box.setStyleSheet("""
-            QMessageBox { min-width: 400px; }
-            QLabel { min-width: 350px; padding: 15px; font-size: 13px; }
-            QPushButton { min-width: 90px; min-height: 32px; font-size: 12px; }
-        """)
-        reply = msg_box.exec()
+        msg_box.setStyleSheet(ResponsiveUI.get_messagebox_stylesheet())
+        msg_box.setWindowModality(Qt.WindowModality.WindowModal)
+        # Use CenteredMessageBox for Linux-compatible centering
+        reply = CenteredMessageBox.show_and_exec(msg_box, self)
         
         if reply == QMessageBox.StandardButton.Yes:
             self.quit_game.emit()
